@@ -1,0 +1,2733 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行動化驗屋與修繕追蹤系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PDF 匯出核心套件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- 新增：Supabase JS SDK 對接雲端儲存 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .draggable-col {
+            cursor: grab;
+        }
+        .draggable-col:active {
+            cursor: grabbing;
+        }
+        .pdf-preview-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .pdf-preview-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased" x-data="inspectionApp()">
+
+    <!-- 🔒 全頁身分核實封鎖畫面 -->
+    <div x-show="!isSiteAuthenticated" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900 text-slate-100 p-4" style="display: none;">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8 space-y-6 text-center">
+            <div class="w-16 h-16 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-2xl flex items-center justify-center mx-auto text-3xl shadow-lg">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-white tracking-wide">系統身分安全核實</h2>
+                <p class="text-xs text-slate-400 mt-1.5">進入行動化驗屋系統前，請先輸入授權帳戶與密碼</p>
+            </div>
+
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">登入帳號</label>
+                    <input type="text" x-model="siteLoginAccount" :disabled="lockoutRemainingSeconds > 0" placeholder="請輸入帳號..." class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">登入密碼</label>
+                    <input type="password" x-model="siteLoginPassword" :disabled="lockoutRemainingSeconds > 0" @keyup.enter="handleSiteLogin()" placeholder="請輸入密碼..." class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50">
+                </div>
+            </div>
+
+            <template x-if="lockoutRemainingSeconds > 0">
+                <div class="bg-red-500/10 border border-red-500/30 text-red-400 p-3.5 rounded-xl text-xs flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-triangle-exclamation text-base shrink-0"></i>
+                    <span>連續輸入錯誤 5 次！已限制登入，請等待 <strong class="font-mono text-sm text-red-300" x-text="formatLockoutTime(lockoutRemainingSeconds)"></strong> 後再試</span>
+                </div>
+            </template>
+
+            <template x-if="loginErrorMsg && lockoutRemainingSeconds <= 0">
+                <div class="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-3 rounded-xl text-xs font-medium" x-text="loginErrorMsg"></div>
+            </template>
+
+            <button @click="handleSiteLogin()" :disabled="lockoutRemainingSeconds > 0" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-text="lockoutRemainingSeconds > 0 ? '系統鎖定中...' : '核實身分並進入網站'"></span>
+            </button>
+
+            <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-700/50">
+                預設最高權限帳號：<span class="font-mono text-slate-300">Admin8866</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        
+        <!-- Mobile Sidebar Toggle Button -->
+        <button @click="mobileSidebarOpen = !mobileSidebarOpen" class="md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center text-xl transition hover:bg-blue-700">
+            <i class="fa-solid" :class="mobileSidebarOpen ? 'fa-xmark' : 'fa-bars'"></i>
+        </button>
+
+        <!-- Left Sidebar -->
+        <aside :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
+            <div>
+                <!-- Brand / Logo -->
+                <div class="px-6 py-5 border-b border-slate-800 flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
+                        <i class="fa-solid fa-house-chimney-user"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-white font-bold text-sm tracking-wide truncate max-w-[130px]" x-text="currentProjectName"></h2>
+                        <span class="text-[11px] text-blue-400 font-medium">智慧化驗屋系統 v3.2</span>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="p-4 space-y-1.5 text-sm">
+                    <a href="#" @click.prevent="activeTab = 'inspection'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'inspection' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
+                            <span>自主驗屋初驗清單</span>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'inspection' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="items.length"></span>
+                    </a>
+                    
+                    <a href="#" @click.prevent="activeTab = 'projects'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'projects' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-folder-open w-5 text-center"></i>
+                            <span>專案清單管理</span>
+                        </div>
+                        <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'projects' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="projects.length"></span>
+                    </a>
+
+                    <a href="#" @click.prevent="activeTab = 'analytics'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'analytics' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                            <span>修繕數據統計</span>
+                        </div>
+                    </a>
+                    <a href="#" @click.prevent="checkSettingsAccess(); mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'settings' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-gear w-5 text-center"></i>
+                            <span>系統參數設定</span>
+                        </div>
+                    </a>
+                </nav>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span>當前模擬身份</span>
+                    <span class="text-emerald-400 font-semibold" x-text="currentRoleName()"></span>
+                </div>
+                <p class="text-[11px] text-slate-500">提示：未正確輸入密碼將自動切換為純觀看者模式。</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Wrapper -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            
+            <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-3">
+                    
+                    <div class="flex items-center space-x-3">
+                        <div class="md:hidden w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-house-chimney-user"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <h1 class="text-lg font-bold text-slate-800 tracking-tight" x-text="currentProjectName"></h1>
+                                <template x-if="hasPermission('edit')">
+                                    <button @click="openEditProjectModal()" class="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition font-medium">
+                                        <i class="fa-solid fa-pen-to-square mr-1"></i>變更名稱
+                                    </button>
+                                </template>
+                            </div>
+                            <p class="text-xs text-slate-500">當前檢驗戶別：<span class="font-semibold text-blue-600" x-text="selectedUnitFilter || '全部戶別'"></span></p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3">
+                        <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs">
+                            <span class="text-slate-500 font-medium"><i class="fa-solid fa-user-shield mr-1"></i>權限角色：</span>
+                            <select :value="currentRole" @change="onRoleSelectChange($event)" class="bg-transparent font-bold text-blue-600 focus:outline-none cursor-pointer">
+                                <option value="Owner">最高權限 (Owner)</option>
+                                <option value="Inspector" x-text="customInspectors[0] ? (customInspectors[0].name + ' (' + customInspectors[0].title + ')') : '驗屋人員'"></option>
+                                <template x-for="insp in customInspectors.slice(1)" :key="insp.id">
+                                    <option :value="'CustomInspector_' + insp.id" x-text="insp.name + ' (' + insp.title + ')'"></option>
+                                </template>
+                                <option value="Vendor" x-text="customVendors[0] ? (customVendors[0].name + ' (' + customVendors[0].title + ')') : '廠商'"></option>
+                                <template x-for="ven in customVendors.slice(1)" :key="ven.id">
+                                    <option :value="'CustomVendor_' + ven.id" x-text="ven.name + ' (' + ven.title + ')'"></option>
+                                </template>
+                                <option value="Admin" x-text="customAdmins[0] ? (customAdmins[0].name + ' (' + customAdmins[0].title + ')') : '工務/管理員'"></option>
+                                <template x-for="adm in customAdmins.slice(1)" :key="adm.id">
+                                    <option :value="'CustomAdmin_' + adm.id" x-text="adm.name + ' (' + adm.title + ')'"></option>
+                                </template>
+                                <option value="Viewer">純觀看者 (Viewer)</option>
+                            </select>
+                        </div>
+
+                        <!-- 📄 匯出 PDF 按鈕 -->
+                        <button @click="openPdfExportModal()" class="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm">
+                            <i class="fa-solid fa-file-pdf"></i>
+                            <span>匯出 PDF 報告</span>
+                        </button>
+
+                        <template x-if="hasPermission('create')">
+                            <button @click="openNewItemModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-2 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>新增驗屋缺失項目</span>
+                            </button>
+                        </template>
+
+                        <!-- 🔒 建立新專案按鈕（僅限 Owner 最高權限） -->
+                        <template x-if="hasPermission('createProject')">
+                            <button @click="openCreateProjectModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm" title="建立全新專案">
+                                <i class="fa-solid fa-folder-plus"></i>
+                                <span class="hidden sm:inline">新專案</span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+                <!-- 專案清單管理 Tab 畫面 -->
+                <template x-if="activeTab === 'projects'">
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-100">
+                                <div>
+                                    <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-folder-open text-blue-600"></i>
+                                        <span>專案清單與切換管理</span>
+                                    </h2>
+                                    <p class="text-xs text-slate-500 mt-1">您可在此透過下拉選單或專案列表，快速切換與管理所有已新增的新專案項目內容。</p>
+                                </div>
+                                <!-- 🔒 僅最高權限顯示 -->
+                                <template x-if="hasPermission('createProject')">
+                                    <button @click="openCreateProjectModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2 shadow-sm">
+                                        <i class="fa-solid fa-folder-plus"></i>
+                                        <span>建立全新專案</span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            <div class="py-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-semibold text-slate-700">選擇要切換或管理的專案項目：</label>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="relative flex-1">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                                <i class="fa-solid fa-bars-progress"></i>
+                                            </span>
+                                            <!-- 🔧 修正：改用 :value 與 $event.target.value 避免提前覆蓋 -->
+                                            <select :value="selectedProjectId" @change="switchProjectById($event.target.value)" class="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl bg-slate-50 text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs">
+                                                <template x-for="p in projects" :key="p.id">
+                                                    <option :value="p.id" x-text="p.name + ' (' + (p.items ? p.items.length : 0) + ' 筆缺失)'"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                        <button @click="activeTab = 'inspection'" class="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition shadow-sm flex items-center space-x-2">
+                                            <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                                            <span>進入檢視清單</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="bg-blue-50/60 border border-blue-100 rounded-2xl p-4 flex items-center space-x-4">
+                                    <div class="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-md shrink-0">
+                                        <i class="fa-solid fa-building-shield"></i>
+                                    </div>
+                                    <div>
+                                        <span class="text-xs text-blue-600 font-bold">目前作用中專案</span>
+                                        <h4 class="text-base font-bold text-slate-800" x-text="currentProjectName"></h4>
+                                        <p class="text-xs text-slate-500 mt-0.5">包含項目總數：<span class="font-semibold text-slate-700" x-text="items.length"></span> 筆</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                                <h3 class="font-bold text-slate-800 text-sm">所有已新增專案總覽</h3>
+                                <span class="text-xs text-slate-500">共計 <span class="font-bold text-slate-700" x-text="projects.length"></span> 個專案</span>
+                            </div>
+                            <div class="divide-y divide-slate-100">
+                                <template x-for="proj in projects" :key="proj.id">
+                                    <div class="p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-slate-50/70 transition">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-bold">
+                                                <i class="fa-solid fa-folder"></i>
+                                            </div>
+                                            <div>
+                                                <div class="flex items-center space-x-2">
+                                                    <h4 class="font-bold text-slate-800 text-base" x-text="proj.name"></h4>
+                                                    <template x-if="proj.name === currentProjectName">
+                                                        <span class="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-full font-bold">當前使用中</span>
+                                                    </template>
+                                                </div>
+                                                <p class="text-xs text-slate-500 mt-0.5">專案編號 ID: <span class="font-mono" x-text="proj.id"></span> ｜ 檢驗缺失項目數：<span class="font-semibold text-slate-700" x-text="proj.items ? proj.items.length : 0"></span> 筆</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                                            <button @click="switchProjectById(proj.id); activeTab = 'inspection'" class="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition">
+                                                <i class="fa-solid fa-eye mr-1"></i>切換檢視
+                                            </button>
+                                            <!-- 🔒 僅最高權限可刪除專案 -->
+                                            <template x-if="hasPermission('createProject')">
+                                                <button @click="deleteProject(proj.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold transition" :disabled="projects.length <= 1">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 自主驗屋初驗清單 Tab 畫面 -->
+                <template x-if="activeTab === 'inspection'">
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">總檢驗項目</p>
+                                    <h3 class="text-2xl font-bold text-slate-800 mt-1" x-text="filteredItems.length"></h3>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-clipboard-list"></i>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">待修繕缺失</p>
+                                    <h3 class="text-2xl font-bold text-amber-600 mt-1" x-text="filteredItems.filter(i => i.repairStatus === '待修繕').length"></h3>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">修繕中</p>
+                                    <h3 class="text-2xl font-bold text-blue-600 mt-1" x-text="filteredItems.filter(i => i.repairStatus === '修繕中').length"></h3>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">已完成驗收</p>
+                                    <h3 class="text-2xl font-bold text-emerald-600 mt-1" x-text="filteredItems.filter(i => i.repairStatus === '已完成').length"></h3>
+                                </div>
+                                <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 批量操作面板 -->
+                        <template x-if="batchMode">
+                            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-wrap justify-between items-center gap-4 transition shadow-sm">
+                                <div class="flex items-center space-x-3">
+                                    <span class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-md" x-text="'已選取 ' + selectedItemIds.length + ' 項'"></span>
+                                    <button @click="toggleSelectAll()" class="text-xs text-blue-700 hover:underline font-semibold" x-text="selectedItemIds.length === filteredItems.length ? '取消全選' : '全選所有項目'"></button>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <select x-model="batchTargetSpace" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
+                                        <option value="">批次修改空間...</option>
+                                        <template x-for="s in spaceOptions" :key="s"><option :value="s" x-text="s"></option></template>
+                                    </select>
+                                    <button @click="applyBatchSpace()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用空間</button>
+                                    
+                                    <select x-model="batchTargetStatus" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
+                                        <option value="">批次修繕狀態...</option>
+                                        <option value="待修繕">待修繕</option>
+                                        <option value="修繕中">修繕中</option>
+                                        <option value="已完成">已完成</option>
+                                    </select>
+                                    <button @click="applyBatchStatus()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用狀態</button>
+
+                                    <template x-if="hasPermission('delete')">
+                                        <button @click="deleteBatchItems()" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium flex items-center space-x-1">
+                                            <i class="fa-solid fa-trash-can"></i><span>批量刪除</span>
+                                        </button>
+                                    </template>
+                                    <button @click="exitBatchMode()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium">退出多選</button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 搜尋、多條件篩選與模式切換 -->
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-center gap-4">
+                            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                                <div class="relative w-full sm:w-56">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                    </span>
+                                    <input type="text" x-model="searchQuery" @input="currentPage = 1" placeholder="搜尋項目、備註..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                
+                                <select x-model="selectedSpaceFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="">所有空間</option>
+                                    <template x-for="space in spaceOptions" :key="space">
+                                        <option :value="space" x-text="space"></option>
+                                    </template>
+                                </select>
+
+                                <select x-model="selectedCategoryFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="">所有類別／工種</option>
+                                    <template x-for="cat in categoryOptions" :key="cat">
+                                        <option :value="cat" x-text="cat"></option>
+                                    </template>
+                                </select>
+
+                                <select x-model="selectedUnitFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="">所有戶別</option>
+                                    <template x-for="unit in unitOptions" :key="unit">
+                                        <option :value="unit" x-text="unit"></option>
+                                    </template>
+                                </select>
+
+                                <select x-model="filterStatus" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="">所有修繕狀態</option>
+                                    <option value="待修繕">待修繕</option>
+                                    <option value="修繕中">修繕中</option>
+                                    <option value="已完成">已完成</option>
+                                </select>
+
+                                <select x-model="filterInspectionStatus" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                    <option value="">所有工檢狀態</option>
+                                    <option value="待複查">待複查</option>
+                                    <option value="合格">合格</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center space-x-2 shrink-0">
+                                <div class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                                    <button @click="viewMode = 'table'" class="px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center space-x-1" :class="viewMode === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'">
+                                        <i class="fa-solid fa-table-list"></i><span>列表模式</span>
+                                    </button>
+                                    <button @click="openGalleryModal()" class="px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center space-x-1" :class="viewMode === 'gallery' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'">
+                                        <i class="fa-solid fa-images"></i><span>圖庫模式</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 📁 列表模式 (Table View) -->
+                        <template x-if="viewMode === 'table'">
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left border-collapse text-sm">
+                                        <thead>
+                                            <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider select-none">
+                                                <template x-if="batchMode">
+                                                    <th class="p-3 w-10 text-center">
+                                                        <input type="checkbox" :checked="selectedItemIds.length === filteredItems.length && filteredItems.length > 0" @change="toggleSelectAll()">
+                                                    </th>
+                                                </template>
+                                                <template x-for="(col, index) in tableColumns" :key="col.key">
+                                                    <th class="p-3 draggable-col transition hover:bg-slate-100" 
+                                                        :class="col.align === 'center' ? 'text-center' : ''" 
+                                                        :style="'min-width: ' + col.width"
+                                                        draggable="true"
+                                                        @dragstart="handleHeaderDragStart($event, index)"
+                                                        @dragover.prevent
+                                                        @drop="handleHeaderDrop($event, index)">
+                                                        <div class="flex items-center space-x-1" :class="col.align === 'center' ? 'justify-center' : ''">
+                                                            <i class="fa-solid fa-grip-vertical text-slate-300 text-xs mr-1"></i>
+                                                            <span x-text="col.label"></span>
+                                                        </div>
+                                                    </th>
+                                                </template>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="(item, index) in paginatedItems" :key="item.id">
+                                                <tr class="hover:bg-blue-50/40 transition select-none"
+                                                    @mousedown="startRowPress(item.id)"
+                                                    @mouseup="cancelRowPress()"
+                                                    @mouseleave="cancelRowPress()"
+                                                    @touchstart="startRowPress(item.id)"
+                                                    @touchend="cancelRowPress()"
+                                                    :class="selectedItemIds.includes(item.id) ? 'bg-blue-50/80' : ''">
+                                                    
+                                                    <template x-if="batchMode">
+                                                        <td class="p-3 text-center" @click.stop>
+                                                            <input type="checkbox" :value="item.id" x-model="selectedItemIds">
+                                                        </td>
+                                                    </template>
+
+                                                    <template x-for="col in tableColumns" :key="col.key">
+                                                        <td class="p-3" :class="col.align === 'center' ? 'text-center' : ''">
+                                                            <template x-if="col.key === 'code'">
+                                                                <span class="font-medium text-slate-500" x-text="item.code"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'name'">
+                                                                <div>
+                                                                    <div class="font-bold text-slate-800" x-text="item.name"></div>
+                                                                    <div class="text-xs text-slate-500 mt-0.5" x-text="item.method"></div>
+                                                                </div>
+                                                            </template>
+                                                            <template x-if="col.key === 'space'">
+                                                                <span class="text-slate-700" x-text="item.space"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'category'">
+                                                                <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-xs font-medium" x-text="item.category"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'unit'">
+                                                                <span class="font-medium text-blue-600" x-text="item.unit"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'defectPhotos'">
+                                                                <button @click.stop="openPhotoModal(item, 'defect')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="item.defectPhotos.length > 0 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
+                                                                    <template x-if="item.defectPhotos.length > 0">
+                                                                        <span class="flex items-center space-x-1"><i class="fa-solid fa-camera"></i><span x-text="item.defectPhotos.length"></span></span>
+                                                                    </template>
+                                                                    <template x-if="item.defectPhotos.length === 0">
+                                                                        <span>照片</span>
+                                                                    </template>
+                                                                </button>
+                                                            </template>
+                                                            <template x-if="col.key === 'repairPhotos'">
+                                                                <button @click.stop="openPhotoModal(item, 'repair')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="item.repairPhotos.length > 0 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
+                                                                    <template x-if="item.repairPhotos.length > 0">
+                                                                        <span class="flex items-center space-x-1"><i class="fa-solid fa-camera"></i><span x-text="item.repairPhotos.length"></span></span>
+                                                                    </template>
+                                                                    <template x-if="item.repairPhotos.length === 0">
+                                                                        <span>照片</span>
+                                                                    </template>
+                                                                </button>
+                                                            </template>
+                                                            <template x-if="col.key === 'inspectionPhotos'">
+                                                                <button @click.stop="openPhotoModal(item, 'inspection')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="item.inspectionPhotos.length > 0 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
+                                                                    <template x-if="item.inspectionPhotos.length > 0">
+                                                                        <span class="flex items-center space-x-1"><i class="fa-solid fa-camera"></i><span x-text="item.inspectionPhotos.length"></span></span>
+                                                                    </template>
+                                                                    <template x-if="item.inspectionPhotos.length === 0">
+                                                                        <span>照片</span>
+                                                                    </template>
+                                                                </button>
+                                                            </template>
+                                                            <template x-if="col.key === 'repairStatus'">
+                                                                <div @click.stop>
+                                                                    <select x-model="item.repairStatus" @change="onStatusOrPhotoChange(item)" :disabled="!hasPermission('edit')" class="text-xs border rounded px-2 py-1 font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed" :class="{
+                                                                        'bg-amber-50 text-amber-700 border-amber-200': item.repairStatus === '待修繕',
+                                                                        'bg-blue-50 text-blue-700 border-blue-200': item.repairStatus === '修繕中',
+                                                                        'bg-emerald-50 text-emerald-700 border-emerald-200': item.repairStatus === '已完成'
+                                                                    }">
+                                                                        <option value="待修繕">待修繕</option>
+                                                                        <option value="修繕中">修繕中</option>
+                                                                        <option value="已完成">已完成</option>
+                                                                    </select>
+                                                                </div>
+                                                            </template>
+                                                            <template x-if="col.key === 'inspectionStatus'">
+                                                                <div @click.stop>
+                                                                    <select x-model="item.inspectionStatus" @change="onStatusOrPhotoChange(item)" :disabled="!hasPermission('edit')" class="text-xs border rounded px-2 py-1 font-medium disabled:opacity-60 disabled:cursor-not-allowed" :class="{
+                                                                        'bg-amber-50 text-amber-700 border-amber-200': item.inspectionStatus === '待複查',
+                                                                        'bg-emerald-50 text-emerald-700 border-emerald-200': item.inspectionStatus === '合格'
+                                                                    }">
+                                                                        <option value="待複查">待複查</option>
+                                                                        <option value="合格">合格</option>
+                                                                    </select>
+                                                                </div>
+                                                            </template>
+                                                            <template x-if="col.key === 'dueDate'">
+                                                                <span class="text-xs text-slate-600 font-mono" x-text="item.dueDate || '-'"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'completeDate'">
+                                                                <span class="text-xs text-emerald-700 font-mono font-semibold" x-text="item.completeDate || '-'"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'inspector'">
+                                                                <span class="text-xs text-slate-700" x-text="item.inspector || '-'"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'remark'">
+                                                                <span class="text-xs text-slate-500 max-w-xs truncate" x-text="item.remark || '-'"></span>
+                                                            </template>
+                                                            <template x-if="col.key === 'action'">
+                                                                <div @click.stop class="flex items-center justify-center space-x-1.5">
+                                                                    <template x-if="hasPermission('edit')">
+                                                                        <button @click="openEditModal(item)" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition" title="編輯內容">
+                                                                            <i class="fa-solid fa-pen text-xs"></i>
+                                                                        </button>
+                                                                    </template>
+                                                                    <template x-if="hasPermission('delete')">
+                                                                        <button @click="deleteItem(item.id)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center transition" title="刪除項目">
+                                                                            <i class="fa-solid fa-trash text-xs"></i>
+                                                                        </button>
+                                                                    </template>
+                                                                    <template x-if="!hasPermission('edit') && !hasPermission('delete')">
+                                                                        <span class="text-xs text-slate-400">唯讀</span>
+                                                                    </template>
+                                                                </div>
+                                                            </template>
+                                                        </td>
+                                                    </template>
+                                                </tr>
+                                            </template>
+                                            <template x-if="filteredItems.length === 0">
+                                                <tr>
+                                                    <td :colspan="tableColumns.length + (batchMode ? 1 : 0)" class="p-12 text-center text-slate-400">
+                                                        <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-300"></i>
+                                                        <p class="text-sm font-medium">找不到符合條件的驗屋項目</p>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- 新增：列表模式分頁控制列 -->
+                                <template x-if="filteredItems.length > 0">
+                                    <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs">
+                                        <div class="text-slate-500">
+                                            顯示第 <span class="font-bold text-slate-700" x-text="((currentPage - 1) * pageSize) + 1"></span> 到 <span class="font-bold text-slate-700" x-text="Math.min(currentPage * pageSize, filteredItems.length)"></span> 筆，共 <span class="font-bold text-slate-700" x-text="filteredItems.length"></span> 筆
+                                        </div>
+                                        <div class="flex items-center space-x-3">
+                                            <div class="flex items-center space-x-1">
+                                                <span>每頁：</span>
+                                                <select x-model.number="pageSize" @change="currentPage = 1" class="border border-slate-300 rounded px-2 py-1 bg-white font-semibold">
+                                                    <option value="10">10 筆</option>
+                                                    <option value="20">20 筆</option>
+                                                    <option value="50">50 筆</option>
+                                                </select>
+                                            </div>
+                                            <div class="flex items-center space-x-1">
+                                                <button @click="currentPage--" :disabled="currentPage === 1" class="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 font-bold">
+                                                    <i class="fa-solid fa-chevron-left"></i>
+                                                </button>
+                                                <span class="px-2 font-bold text-slate-700" x-text="currentPage + ' / ' + totalPages"></span>
+                                                <button @click="currentPage++" :disabled="currentPage >= totalPages" class="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 font-bold">
+                                                    <i class="fa-solid fa-chevron-right"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                    </div>
+                </template>
+
+                <!-- 修繕數據統計分析儀表板 Tab 畫面 -->
+                <template x-if="activeTab === 'analytics'">
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+                                <div>
+                                    <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-chart-pie text-blue-600"></i>
+                                        <span>修繕數據統計與完成率分析儀表板</span>
+                                    </h2>
+                                    <p class="text-xs text-slate-500 mt-1">自由選擇專案以及空間、戶別、類別，即時計算缺失驗收百分比，並支援圓餅圖、直條圖與橫條圖切換。</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs font-semibold text-slate-600">圖表呈現形式：</span>
+                                    <div class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                                        <button @click="analyticsChartType = 'pie'" class="px-3 py-1.5 rounded-md text-xs font-medium transition" :class="analyticsChartType === 'pie' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"><i class="fa-solid fa-chart-pie mr-1"></i>圓餅圖</button>
+                                        <button @click="analyticsChartType = 'bar'" class="px-3 py-1.5 rounded-md text-xs font-medium transition" :class="analyticsChartType === 'bar' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"><i class="fa-solid fa-chart-column mr-1"></i>直條圖</button>
+                                        <button @click="analyticsChartType = 'horizontalBar'" class="px-3 py-1.5 rounded-md text-xs font-medium transition" :class="analyticsChartType === 'horizontalBar' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'"><i class="fa-solid fa-chart-bar mr-1"></i>橫條圖</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-semibold text-slate-700">選擇統計專案</label>
+                                    <select x-model="analyticsProjectId" @change="switchAnalyticsProject(analyticsProjectId)" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500">
+                                        <template x-for="p in projects" :key="p.id">
+                                            <option :value="p.id" x-text="p.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-semibold text-slate-700">篩選空間</label>
+                                    <select x-model="analyticsSpace" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                                        <option value="">全部空間 (全專案)</option>
+                                        <template x-for="space in analyticsSpaceList" :key="space">
+                                            <option :value="space" x-text="space"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-semibold text-slate-700">篩選戶別</label>
+                                    <select x-model="analyticsUnit" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                                        <option value="">全部戶別 (全專案)</option>
+                                        <template x-for="unit in analyticsUnitList" :key="unit">
+                                            <option :value="unit" x-text="unit"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-semibold text-slate-700">篩選類別／工種</label>
+                                    <select x-model="analyticsCategory" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                                        <option value="">全部類別 (全專案)</option>
+                                        <template x-for="cat in analyticsCategoryList" :key="cat">
+                                            <option :value="cat" x-text="cat"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">篩選範圍總缺失數量</p>
+                                    <h3 class="text-3xl font-bold text-slate-800 mt-1" x-text="analyticsFilteredItems.length"></h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-layer-group"></i>
+                                </div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">已完成驗收數量</p>
+                                    <h3 class="text-3xl font-bold text-emerald-600 mt-1" x-text="analyticsCompletedCount"></h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-slate-500 font-medium">驗收完成百分比</p>
+                                    <h3 class="text-3xl font-bold text-blue-600 mt-1" x-text="analyticsCompletionRate + '%'"></h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+                                    <i class="fa-solid fa-percent"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-slate-800 text-base">缺失改善狀況視覺化圖表</h3>
+                                <span class="text-xs text-slate-500" x-text="'當前顯示格式：' + (analyticsChartType === 'pie' ? '圓餅圖' : analyticsChartType === 'bar' ? '直條圖' : '橫條圖')"></span>
+                            </div>
+
+                            <template x-if="analyticsChartType === 'pie'">
+                                <div class="py-10 flex flex-col md:flex-row items-center justify-center gap-10">
+                                    <div class="relative w-48 h-48 flex items-center justify-center">
+                                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                            <path class="text-slate-100" stroke-width="3.8" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <path class="text-emerald-500 transition-all duration-500" stroke-dasharray="100, 100" :stroke-dasharray="analyticsCompletionRate + ', 100'" stroke-width="3.8" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        </svg>
+                                        <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                                            <span class="text-3xl font-bold text-slate-800" x-text="analyticsCompletionRate + '%'"></span>
+                                            <span class="text-[11px] text-slate-500 font-medium">已完成比例</span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-3 min-w-[240px]">
+                                        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg text-sm">
+                                            <span class="flex items-center space-x-2 text-slate-600"><span class="w-3 h-3 rounded-full bg-emerald-500"></span><span>已完成驗收</span></span>
+                                            <span class="font-bold text-slate-800" x-text="analyticsCompletedCount + ' 項 (' + analyticsCompletionRate + '%)'"></span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg text-sm">
+                                            <span class="flex items-center space-x-2 text-slate-600"><span class="w-3 h-3 rounded-full bg-amber-500"></span><span>未完成/待修繕</span></span>
+                                            <span class="font-bold text-slate-800" x-text="(analyticsFilteredItems.length - analyticsCompletedCount) + ' 項 (' + (100 - analyticsCompletionRate) + '%)'"></span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg text-sm border border-blue-100">
+                                            <span class="font-semibold text-blue-700">總計項目數</span>
+                                            <span class="font-bold text-blue-700" x-text="analyticsFilteredItems.length + ' 項 (100%)'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="analyticsChartType === 'bar'">
+                                <div class="py-8 px-4 flex flex-col items-center justify-center">
+                                    <div class="w-full max-w-xl h-64 flex items-end justify-around gap-8 border-b-2 border-slate-200 pb-2">
+                                        <div class="flex flex-col items-center h-full justify-end w-28 group">
+                                            <span class="text-xs font-bold text-emerald-600 mb-1" x-text="analyticsCompletionRate + '%'"></span>
+                                            <div class="w-full bg-emerald-500 rounded-t-lg transition-all duration-500 shadow-sm flex items-center justify-center text-white font-bold text-xs" :style="'height: ' + Math.max(analyticsCompletionRate, 8) + '%'" x-text="analyticsCompletedCount + '項'"></div>
+                                            <span class="text-xs font-semibold text-slate-700 mt-2">已完成驗收</span>
+                                        </div>
+                                        <div class="flex flex-col items-center h-full justify-end w-28 group">
+                                            <span class="text-xs font-bold text-amber-600 mb-1" x-text="(100 - analyticsCompletionRate) + '%'"></span>
+                                            <div class="w-full bg-amber-500 rounded-t-lg transition-all duration-500 shadow-sm flex items-center justify-center text-white font-bold text-xs" :style="'height: ' + Math.max(100 - analyticsCompletionRate, 8) + '%'" x-text="(analyticsFilteredItems.length - analyticsCompletedCount) + '項'"></div>
+                                            <span class="text-xs font-semibold text-slate-700 mt-2">待修繕/未完成</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="analyticsChartType === 'horizontalBar'">
+                                <div class="py-6 space-y-4 max-w-2xl mx-auto">
+                                    <div class="space-y-1">
+                                        <div class="flex justify-between text-xs font-semibold text-slate-700">
+                                            <span>已完成驗收</span>
+                                            <span x-text="analyticsCompletedCount + ' 項 (' + analyticsCompletionRate + '%)'"></span>
+                                        </div>
+                                        <div class="w-full bg-slate-100 h-6 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                                            <div class="bg-emerald-500 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 text-[10px] text-white font-bold" :style="'width: ' + analyticsCompletionRate + '%'" x-text="analyticsCompletionRate + '%'"></div>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <div class="flex justify-between text-xs font-semibold text-slate-700">
+                                            <span>未完成 / 待修繕</span>
+                                            <span x-text="(analyticsFilteredItems.length - analyticsCompletedCount) + ' 項 (' + (100 - analyticsCompletionRate) + '%)'"></span>
+                                        </div>
+                                        <div class="w-full bg-slate-100 h-6 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                                            <div class="bg-amber-500 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 text-[10px] text-white font-bold" :style="'width: ' + (100 - analyticsCompletionRate) + '%'" x-text="(100 - analyticsCompletionRate) + '%'"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 系統參數設定 Tab 畫面 -->
+                <template x-if="activeTab === 'settings'">
+                    <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-6 max-w-4xl mx-auto text-left">
+                        <div class="flex items-center space-x-3 pb-4 border-b border-slate-100">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl shadow-sm">
+                                <i class="fa-solid fa-gear"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-800">【系統參數設定】</h3>
+                                <p class="text-xs text-slate-500">修改系統登入最高權限帳密、多用戶帳號管理（最多20組）、角色名單與個人密碼設定。</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6 text-sm">
+                            
+                            <!-- 新增：Supabase 雲端對接參數設定區塊 -->
+                            <div class="p-5 bg-blue-50/50 rounded-xl border border-blue-200 space-y-4">
+                                <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                    <i class="fa-solid fa-cloud-arrow-up text-blue-600"></i>
+                                    <span>Supabase 雲端儲存空間金鑰設定（解決容量限制）</span>
+                                </h4>
+                                <p class="text-xs text-slate-500">請填寫 Supabase 專案的 Anon/Public Key。圖片將直接上傳至雲端儲存，資料庫僅存 URL，避免 localStorage 爆滿。</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 mb-1">Supabase URL</label>
+                                        <input type="text" x-model="supabaseUrl" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="https://xxx.supabase.co">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 mb-1">Supabase Anon Key</label>
+                                        <input type="password" x-model="supabaseKey" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="請貼上 anon/public key">
+                                    </div>
+                                </div>
+                                <div class="flex justify-end pt-1">
+                                    <button @click="saveSupabaseConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存 Supabase 設定</button>
+                                </div>
+                            </div>
+
+                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                    <i class="fa-solid fa-user-shield text-blue-600"></i>
+                                    <span>系統最高權限 (Admin) 登入帳號與密碼設置</span>
+                                </h4>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 mb-1">最高權限帳號</label>
+                                        <input type="text" x-model="tempAdminAccount" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="例如：Admin8866">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-700 mb-1">最高權限密碼</label>
+                                        <input type="password" x-model="tempAdminPassword" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="輸入新密碼...">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between pt-1">
+                                    <p class="text-xs text-slate-400">預設帳號：<span class="font-mono text-slate-600 font-bold">Admin8866</span> ｜ 預設密碼：<span class="font-mono text-slate-600 font-bold">Admin86392672@</span></p>
+                                    <button @click="saveAdminCredentials()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存最高權限帳密</button>
+                                </div>
+                            </div>
+
+                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-users text-blue-600"></i>
+                                        <span>系統登入用戶帳號管理 (最多可設定 20 組)</span>
+                                    </h4>
+                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + systemUsers.length + ' / 20 組'"></span>
+                                </div>
+
+                                <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-3">
+                                    <span class="text-xs font-bold text-blue-600 flex items-center"><i class="fa-solid fa-user-plus mr-1"></i>新增一組登入帳戶：</span>
+                                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                                        <input type="text" x-model="newSystemUser.username" placeholder="登入帳號" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
+                                        <input type="password" x-model="newSystemUser.password" placeholder="登入密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
+                                        <input type="text" x-model="newSystemUser.name" placeholder="使用者姓名/備註" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
+                                        <select x-model="newSystemUser.role" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
+                                            <option value="Inspector">驗屋人員權限</option>
+                                            <option value="Admin">工務/管理員權限</option>
+                                            <option value="Vendor">廠商權限</option>
+                                            <option value="Owner">最高權限 (Owner)</option>
+                                            <option value="Viewer">純觀看者 (Viewer)</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex justify-end">
+                                        <button @click="addSystemUser()" :disabled="systemUsers.length >= 20" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1">
+                                            <i class="fa-solid fa-plus"></i><span>新增用戶</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                    <template x-for="(user, uIdx) in systemUsers" :key="user.id">
+                                        <div class="p-3 bg-white rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                            <div class="flex items-center space-x-2 font-mono">
+                                                <span class="w-5 text-center text-slate-400 font-bold" x-text="uIdx + 1"></span>
+                                                <span class="font-bold text-slate-800" x-text="user.username"></span>
+                                                <span class="text-slate-400">/</span>
+                                                <span class="text-slate-500" x-text="'••••••••'"></span>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-semibold" x-text="user.name || '未填寫姓名'"></span>
+                                                <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded" x-text="getRoleLabel(user.role)"></span>
+                                                <button @click="removeSystemUser(user.id)" class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-xs font-semibold ml-2">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="systemUsers.length === 0">
+                                        <p class="text-center text-xs text-slate-400 py-3 italic">尚無自訂用戶帳號，目前僅有預設最高權限帳號 (Admin8866)</p>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                                <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                    <i class="fa-solid fa-key text-blue-600"></i>
+                                    <span>設定最高權限者 (Owner) 快速切換密碼</span>
+                                </h4>
+                                <div class="flex items-center space-x-3">
+                                    <input type="password" x-model="tempOwnerPassword" class="px-3 py-2 border border-slate-300 rounded-lg w-64 text-sm bg-white" placeholder="輸入新密碼">
+                                    <button @click="saveOwnerPassword()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-xs shadow-sm">更新密碼</button>
+                                </div>
+                                <p class="text-xs text-slate-400">當前最高權限預設密碼：86392672</p>
+                            </div>
+
+                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-users-gear text-blue-600"></i>
+                                        <span>驗屋人員名單管理 (最多 5 位，第一位為主角色)</span>
+                                    </h4>
+                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + customInspectors.length + ' / 5 位'"></span>
+                                </div>
+                                <div class="divide-y divide-slate-200 space-y-3">
+                                    <template x-for="(insp, index) in customInspectors" :key="insp.id">
+                                        <div class="pt-3 flex flex-wrap items-center gap-3">
+                                            <template x-if="index === 0">
+                                                <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold shrink-0">主角色</span>
+                                            </template>
+                                            <input type="text" x-model="insp.name" placeholder="個人姓名" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-32 bg-white">
+                                            <input type="text" x-model="insp.title" placeholder="頭銜" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs flex-1 min-w-[140px] bg-white">
+                                            <input type="password" x-model="insp.password" placeholder="個人密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-28 bg-white">
+                                            <template x-if="index > 0">
+                                                <button @click="removeInspector(insp.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                                <template x-if="customInspectors.length < 5">
+                                    <button @click="addInspector()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 mt-2">
+                                        <i class="fa-solid fa-user-plus"></i>
+                                        <span>新增一位驗屋人員</span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-building text-blue-600"></i>
+                                        <span>廠商名單管理 (最多 5 位，第一位為主角色)</span>
+                                    </h4>
+                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + customVendors.length + ' / 5 位'"></span>
+                                </div>
+                                <div class="divide-y divide-slate-200 space-y-3">
+                                    <template x-for="(ven, index) in customVendors" :key="ven.id">
+                                        <div class="pt-3 flex flex-wrap items-center gap-3">
+                                            <template x-if="index === 0">
+                                                <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold shrink-0">主角色</span>
+                                            </template>
+                                            <input type="text" x-model="ven.name" placeholder="廠商/人員姓名" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-32 bg-white">
+                                            <input type="text" x-model="ven.title" placeholder="工種/頭銜" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs flex-1 min-w-[140px] bg-white">
+                                            <input type="password" x-model="ven.password" placeholder="個人密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-28 bg-white">
+                                            <template x-if="index > 0">
+                                                <button @click="removeVendor(ven.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                                <template x-if="customVendors.length < 5">
+                                    <button @click="addVendor()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 mt-2">
+                                        <i class="fa-solid fa-user-plus"></i>
+                                        <span>新增一位廠商</span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-user-tie text-blue-600"></i>
+                                        <span>工務/管理員名單管理 (最多 5 位，第一位為主角色)</span>
+                                    </h4>
+                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + customAdmins.length + ' / 5 位'"></span>
+                                </div>
+                                <div class="divide-y divide-slate-200 space-y-3">
+                                    <template x-for="(adm, index) in customAdmins" :key="adm.id">
+                                        <div class="pt-3 flex flex-wrap items-center gap-3">
+                                            <template x-if="index === 0">
+                                                <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold shrink-0">主角色</span>
+                                            </template>
+                                            <input type="text" x-model="adm.name" placeholder="管理員姓名" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-32 bg-white">
+                                            <input type="text" x-model="adm.title" placeholder="職稱" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs flex-1 min-w-[140px] bg-white">
+                                            <input type="password" x-model="adm.password" placeholder="個人密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-28 bg-white">
+                                            <template x-if="index > 0">
+                                                <button @click="removeAdmin(adm.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                                <template x-if="customAdmins.length < 5">
+                                    <button @click="addAdmin()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 mt-2">
+                                        <i class="fa-solid fa-user-plus"></i>
+                                        <span>新增一位工務/管理員</span>
+                                    </button>
+                                </template>
+                            </div>
+
+                        </div>
+
+                        <div class="flex justify-end pt-4 border-t border-slate-100">
+                            <button @click="activeTab = 'inspection'" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold shadow-sm">儲存設定並返回清單</button>
+                        </div>
+                    </div>
+                </template>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- 📄 PDF 報告匯出與設定浮動視窗 (PDF Export Modal) -->
+    <div x-show="showPdfExportModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col p-6 space-y-4 max-h-[92vh]" @click.stop>
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-file-pdf text-rose-600"></i>
+                    <span>匯出 PDF 缺失報告說明書</span>
+                </h3>
+                <button @click="showPdfExportModalFlag = false" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3.5 text-sm overflow-y-auto pr-1">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">專案目前標題：</label>
+                    <input type="text" x-model="pdfForm.title" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-slate-50 font-bold text-slate-800" placeholder="例如：國泰央北建案 B1 區">
+                    <p class="text-[11px] text-slate-400 mt-1">PDF將自動呈現：<span class="font-semibold text-slate-700" x-text="'【' + (pdfForm.title || '國泰央北建案 B1 區') + '】缺失報告說明書'"></span></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">委託人：</label>
+                        <input type="text" x-model="pdfForm.client" placeholder="請輸入委託人..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">建案：</label>
+                        <input type="text" x-model="pdfForm.projectName" placeholder="請輸入建案..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">標的物地址：</label>
+                    <input type="text" x-model="pdfForm.address" placeholder="請輸入標的物地址..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">備註：</label>
+                    <textarea x-model="pdfForm.remark" rows="2" placeholder="請輸入補充說明或備註..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">相片顯示（最多選擇兩種，並排縮圖呈現）：</label>
+                    <div class="flex items-center space-x-2 pt-1">
+                        <button type="button" @click="togglePdfPhotoType('defect')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition border" :class="pdfForm.photoTypes.includes('defect') ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                            【缺失照片】
+                        </button>
+                        <button type="button" @click="togglePdfPhotoType('repair')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition border" :class="pdfForm.photoTypes.includes('repair') ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                            【修繕照片】
+                        </button>
+                        <button type="button" @click="togglePdfPhotoType('inspection')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition border" :class="pdfForm.photoTypes.includes('inspection') ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-slate-100 text-slate-600 border-slate-200'">
+                            【工檢照片】
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-semibold text-slate-700 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-up-right-and-down-left-from-center text-rose-600"></i>
+                            <span>PDF 縮放比例調整：</span>
+                        </label>
+                        <span class="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" x-text="pdfForm.scale + '%'"></span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="text-[11px] text-slate-400 font-medium">小 (50%)</span>
+                        <input type="range" min="50" max="150" step="5" x-model.number="pdfForm.scale" class="w-full accent-rose-600 cursor-pointer">
+                        <span class="text-[11px] text-slate-400 font-medium">大 (150%)</span>
+                        <button type="button" @click="pdfForm.scale = 100" class="px-2 py-1 text-[11px] bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded transition font-medium shrink-0">重設 100%</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span><i class="fa-solid fa-eye text-blue-600 mr-1"></i>PDF 實時預覽縮圖：</span>
+                        <span class="text-[11px] text-slate-400 font-normal">（縮圖即時反應目前頁面內容與比例設定）</span>
+                    </label>
+                    <div class="w-full h-52 border border-slate-300 rounded-xl bg-slate-200 overflow-auto relative flex justify-center p-3 pdf-preview-scroll shadow-inner">
+                        <div class="bg-white shadow-lg rounded-sm origin-top transition-all duration-200 p-4 border border-slate-300 select-none shrink-0"
+                             :style="'transform: scale(' + ((pdfForm.scale / 100) * 0.42) + '); transform-origin: top center; width: 790px; min-height: 950px; mb-[-550px]'">
+                            
+                            <div class="text-center pb-2 mb-3 border-b-2 border-slate-800">
+                                <h1 class="text-xl font-bold text-slate-900" x-text="'【' + (pdfForm.title || currentProjectName || '國泰央北建案 B1 區') + '】缺失報告說明書'"></h1>
+                            </div>
+                            <table class="w-full border-collapse border border-slate-300 text-xs mb-3">
+                                <tr>
+                                    <td class="p-1.5 border border-slate-300 bg-slate-100 font-bold w-1/6">委託人</td>
+                                    <td class="p-1.5 border border-slate-300 w-2/6" x-text="pdfForm.client || '-'"></td>
+                                    <td class="p-1.5 border border-slate-300 bg-slate-100 font-bold w-1/6">建案</td>
+                                    <td class="p-1.5 border border-slate-300 w-2/6" x-text="pdfForm.projectName || '-'"></td>
+                                </tr>
+                                <tr>
+                                    <td class="p-1.5 border border-slate-300 bg-slate-100 font-bold">標的物地址</td>
+                                    <td class="p-1.5 border border-slate-300" x-text="pdfForm.address || '-'"></td>
+                                    <td class="p-1.5 border border-slate-300 bg-slate-100 font-bold">備註</td>
+                                    <td class="p-1.5 border border-slate-300" x-text="pdfForm.remark || '-'"></td>
+                                </tr>
+                            </table>
+                            
+                            <div class="bg-slate-800 text-white font-bold px-3 py-1.5 rounded text-xs mb-3">
+                                標的屋檢驗相片及說明
+                            </div>
+
+                            <template x-for="(item, idx) in filteredItems.slice(0, 2)" :key="item.id">
+                                <div class="border border-slate-400 rounded mb-3 p-3 bg-white">
+                                    <div class="flex justify-between items-center border-b border-slate-200 pb-1 mb-2 text-xs">
+                                        <span class="font-bold text-blue-700" x-text="(item.unit || '') + ' ' + (item.space || '') + ' - ' + item.name"></span>
+                                        <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium" x-text="item.category"></span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <template x-for="pType in pdfForm.photoTypes" :key="pType">
+                                            <div class="border border-slate-200 bg-slate-50 p-1 text-center rounded">
+                                                <div class="text-[10px] font-bold text-slate-500 mb-1" x-text="pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')"></div>
+                                                <div class="h-20 bg-slate-200 rounded flex items-center justify-center overflow-hidden">
+                                                    <template x-if="getPhotosByType(item, pType).length > 0">
+                                                        <img :src="getPhotosByType(item, pType)[0]" class="max-h-full max-w-full object-contain">
+                                                    </template>
+                                                    <template x-if="getPhotosByType(item, pType).length === 0">
+                                                        <span class="text-[10px] text-slate-400">（無照片）</span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="filteredItems.length > 2">
+                                <div class="text-center text-xs text-slate-400 italic mt-2 bg-slate-50 py-1.5 border border-dashed border-slate-300 rounded">
+                                    ...共計 <span class="font-bold" x-text="filteredItems.length"></span> 筆缺失項目將完整輸出至 PDF 檔案
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="flex space-x-3 pt-2 border-t border-slate-100">
+                <button @click="showPdfExportModalFlag = false" class="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 font-medium hover:bg-slate-50">取消</button>
+                <button @click="exportToPdf()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span>產生並下載 PDF</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📄 PDF 報告公版隱藏渲染模板 -->
+    <div style="position: absolute; left: -9999px; top: -9999px;">
+        <div id="pdf-export-template" style="width: 790px; padding: 24px; background: #ffffff; font-family: 'Noto Sans TC', sans-serif; color: #1e293b; box-sizing: border-box;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h1 style="font-size: 22px; font-weight: bold; color: #0f172a; margin: 0; padding-bottom: 6px; border-bottom: 2px solid #0f172a;" x-text="'【' + (pdfForm.title || '國泰央北建案 B1 區') + '】缺失報告說明書'"></h1>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; border: 1px solid #cbd5e1;">
+                <tr>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc; font-weight: bold; width: 15%; color: #334155;">委託人</td>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1; width: 35%;" x-text="pdfForm.client || '【】'"></td>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc; font-weight: bold; width: 15%; color: #334155;">建案</td>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1; width: 35%;" x-text="pdfForm.projectName || '【】'"></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc; font-weight: bold; color: #334155;">標的物地址</td>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1;" x-text="pdfForm.address || '【】'"></td>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1; background: #f8fafc; font-weight: bold; color: #334155;">備註</td>
+                    <td style="padding: 8px 12px; border: 1px solid #cbd5e1;" x-text="pdfForm.remark || '【】'"></td>
+                </tr>
+            </table>
+
+            <div style="font-size: 15px; font-weight: bold; padding: 8px 12px; background-color: #1e293b; color: #ffffff; margin-bottom: 16px; border-radius: 4px;">
+                標的屋檢驗相片及說明
+            </div>
+
+            <template x-for="(item, idx) in filteredItems" :key="item.id">
+                <div style="border: 1.5px solid #475569; margin-bottom: 18px; page-break-inside: avoid; border-radius: 6px; overflow: hidden; background: #ffffff;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr style="background: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+                            <td style="padding: 8px 12px; width: 15%; font-weight: bold; border-right: 1px solid #cbd5e1; color: #334155;">類別</td>
+                            <td style="padding: 8px 12px; width: 35%; border-right: 1px solid #cbd5e1; font-weight: 500;" x-text="item.category"></td>
+                            <td style="padding: 8px 12px; width: 15%; font-weight: bold; border-right: 1px solid #cbd5e1; color: #334155;">檢測區域</td>
+                            <td style="padding: 8px 12px; width: 35%; font-weight: bold; color: #2563eb;" x-text="(item.unit || '') + ' ' + (item.space || '')"></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #cbd5e1;">
+                            <td style="padding: 8px 12px; font-weight: bold; border-right: 1px solid #cbd5e1; background: #f8fafc; color: #334155;">缺失說明</td>
+                            <td style="padding: 8px 12px;" colspan="3" x-text="item.name + (item.remark ? '（' + item.remark + '）' : '')"></td>
+                        </tr>
+                    </table>
+
+                    <div style="padding: 10px; border-bottom: 1px solid #cbd5e1; background: #fafafa;">
+                        <div style="display: flex; gap: 12px; justify-content: center; align-items: center;">
+                            <template x-for="pType in pdfForm.photoTypes" :key="pType">
+                                <div style="flex: 1; text-align: center; max-width: 50%;">
+                                    <div style="font-size: 12px; font-weight: bold; color: #475569; margin-bottom: 4px;" x-text="pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')"></div>
+                                    <div style="width: 100%; height: 170px; border: 1px solid #e2e8f0; background: #f1f5f9; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px;">
+                                        <template x-if="getPhotosByType(item, pType).length > 0">
+                                            <img :src="getPhotosByType(item, pType)[0]" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                                        </template>
+                                        <template x-if="getPhotosByType(item, pType).length === 0">
+                                            <span style="font-size: 12px; color: #94a3b8;">（尚無相片）</span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div style="padding: 8px 14px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+                        <span style="font-weight: bold; color: #1e293b;">複檢欄位區域：</span>
+                        <div style="display: flex; gap: 24px; font-size: 13px;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" :checked="item.repairStatus === '待修繕'" style="width: 16px; height: 16px;">
+                                <span :style="item.repairStatus === '待修繕' ? 'color: #d97706; font-weight: bold;' : 'color: #64748b;'">待修繕</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" :checked="item.repairStatus === '修繕中'" style="width: 16px; height: 16px;">
+                                <span :style="item.repairStatus === '修繕中' ? 'color: #2563eb; font-weight: bold;' : 'color: #64748b;'">修繕中</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" :checked="item.repairStatus === '已完成'" style="width: 16px; height: 16px;">
+                                <span :style="item.repairStatus === '已完成' ? 'color: #059669; font-weight: bold;' : 'color: #64748b;'">修繕完成</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Password Modal -->
+    <div x-show="showPasswordModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-sm">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800">請輸入身份密碼</h3>
+                <p class="text-xs text-slate-500" x-text="passwordPromptTitle"></p>
+            </div>
+            <div>
+                <input type="password" x-model="enteredPassword" @keyup.enter="verifyPassword()" placeholder="請輸入密碼..." class="w-full px-4 py-3 border border-slate-300 rounded-xl text-center text-lg tracking-widest font-bold focus:ring-2 focus:ring-blue-500 bg-slate-50" x-ref="pwdInput">
+            </div>
+            <div class="flex space-x-3 pt-2">
+                <button @click="cancelPasswordModal()" class="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 font-medium hover:bg-slate-50">取消</button>
+                <button @click="verifyPassword()" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-sm">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖庫模式彈跳視窗 -->
+    <div x-show="showGalleryModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div class="flex items-center space-x-4">
+                    <h2 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-images text-blue-600 mr-2"></i>圖庫模式</h2>
+                    <select x-model="galleryPhotoType" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 bg-white font-medium focus:ring-2 focus:ring-blue-500">
+                        <option value="defect">缺失照片</option>
+                        <option value="repair">修繕照片</option>
+                        <option value="inspection">工檢照片</option>
+                    </select>
+                </div>
+                <button @click="closeGalleryModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center gap-4 text-xs">
+                <span class="font-bold text-slate-700">下方列表顯示控制：</span>
+                <label class="inline-flex items-center space-x-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                    <span class="text-slate-600">項目/驗收方法</span>
+                    <i class="fa-solid text-blue-600" :class="galleryColumnsVisible.nameMethod ? 'fa-eye' : 'fa-eye-slash text-slate-400'" @click="galleryColumnsVisible.nameMethod = !galleryColumnsVisible.nameMethod"></i>
+                </label>
+                <label class="inline-flex items-center space-x-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                    <span class="text-slate-600">空間</span>
+                    <i class="fa-solid text-blue-600" :class="galleryColumnsVisible.space ? 'fa-eye' : 'fa-eye-slash text-slate-400'" @click="galleryColumnsVisible.space = !galleryColumnsVisible.space"></i>
+                </label>
+                <label class="inline-flex items-center space-x-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                    <span class="text-slate-600">戶別</span>
+                    <i class="fa-solid text-blue-600" :class="galleryColumnsVisible.unit ? 'fa-eye' : 'fa-eye-slash text-slate-400'" @click="galleryColumnsVisible.unit = !galleryColumnsVisible.unit"></i>
+                </label>
+                <label class="inline-flex items-center space-x-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                    <span class="text-slate-600">修繕狀態</span>
+                    <i class="fa-solid text-blue-600" :class="galleryColumnsVisible.repairStatus ? 'fa-eye' : 'fa-eye-slash text-slate-400'" @click="galleryColumnsVisible.repairStatus = !galleryColumnsVisible.repairStatus"></i>
+                </label>
+                <label class="inline-flex items-center space-x-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs">
+                    <span class="text-slate-600">工檢狀態</span>
+                    <i class="fa-solid text-blue-600" :class="galleryColumnsVisible.inspectionStatus ? 'fa-eye' : 'fa-eye-slash text-slate-400'" @click="galleryColumnsVisible.inspectionStatus = !galleryColumnsVisible.inspectionStatus"></i>
+                </label>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <template x-for="item in paginatedItems" :key="item.id">
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between hover:shadow-md transition">
+                            <div class="relative h-44 bg-slate-900 overflow-hidden cursor-pointer" @click="openPhotoModal(item, galleryPhotoType)">
+                                <template x-if="getPhotosByType(item, galleryPhotoType).length > 0">
+                                    <img :src="getPhotosByType(item, galleryPhotoType)[0]" class="w-full h-full object-cover hover:scale-105 transition duration-300" alt="照片縮圖">
+                                </template>
+                                <template x-if="getPhotosByType(item, galleryPhotoType).length === 0">
+                                    <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
+                                        <i class="fa-solid fa-camera-retro text-3xl mb-1 text-slate-300"></i>
+                                        <span class="text-xs font-semibold">尚無照片，點擊上傳</span>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="p-3 space-y-1 text-xs">
+                                <template x-if="galleryColumnsVisible.nameMethod">
+                                    <div class="font-bold text-slate-800 text-sm truncate" x-text="item.name + ' (' + item.method + ')'"></div>
+                                </template>
+                                <div class="flex flex-wrap items-center gap-2 text-slate-500">
+                                    <template x-if="galleryColumnsVisible.space">
+                                        <span class="bg-slate-100 px-2 py-0.5 rounded" x-text="'空間: ' + item.space"></span>
+                                    </template>
+                                    <template x-if="galleryColumnsVisible.unit">
+                                        <span class="bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded" x-text="'戶別: ' + item.unit"></span>
+                                    </template>
+                                </div>
+                                <div class="flex items-center space-x-2 pt-1">
+                                    <template x-if="galleryColumnsVisible.repairStatus">
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="{
+                                            'bg-amber-100 text-amber-700': item.repairStatus === '待修繕',
+                                            'bg-blue-100 text-blue-700': item.repairStatus === '修繕中',
+                                            'bg-emerald-100 text-emerald-700': item.repairStatus === '已完成'
+                                        }" x-text="item.repairStatus"></span>
+                                    </template>
+                                    <template x-if="galleryColumnsVisible.inspectionStatus">
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="{
+                                            'bg-amber-100 text-amber-700': item.inspectionStatus === '待複查',
+                                            'bg-emerald-100 text-emerald-700': item.inspectionStatus === '合格'
+                                        }" x-text="item.inspectionStatus"></span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 新增：圖庫模式分頁控制列 -->
+            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs">
+                <div class="text-slate-500">
+                    頁次：<span class="font-bold text-slate-700" x-text="currentPage"></span> / <span class="font-bold text-slate-700" x-text="totalPages"></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button @click="currentPage--" :disabled="currentPage === 1" class="px-3 py-1.5 border border-slate-300 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 font-bold">上一頁</button>
+                    <button @click="currentPage++" :disabled="currentPage >= totalPages" class="px-3 py-1.5 border border-slate-300 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 font-bold">下一頁</button>
+                    <button @click="closeGalleryModal()" class="px-5 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-xs text-white font-medium shadow-sm ml-2">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Modal -->
+    <div x-show="showPhotoModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]" @click.stop>
+            <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                    <span class="text-[11px] sm:text-xs text-slate-400 font-semibold" x-text="'現場照片 · ' + (currentPhotoItem.unit || 'A3-01')"></span>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800">照片檢視與管理</h2>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button @click="openOriginalImageView()" class="px-2.5 sm:px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1">
+                        <i class="fa-solid fa-image"></i><span>原圖查看</span>
+                    </button>
+                    <button @click="closePhotoModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+                <div class="lg:col-span-8 bg-slate-900 p-3 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[250px] sm:min-h-[400px]">
+
+                    <div class="relative w-full h-full flex flex-col items-center justify-center select-none border-2 border-dashed border-slate-700 rounded-xl p-2"
+                         @dragover.prevent @drop.prevent="handleFileDrop($event)">
+                        
+                        <template x-if="currentPhotoList().length > 0">
+                            <div class="flex flex-col items-center w-full h-full justify-center space-y-2">
+                                <div class="relative inline-block max-w-full max-h-[35vh] sm:max-h-[50vh]">
+                                    <img :src="currentPhotoList()[activePhotoIndex]" id="previewImageElement" class="block max-h-[35vh] sm:max-h-[50vh] max-w-full rounded shadow-lg object-contain mx-auto" alt="照片檢視">
+                                </div>
+
+                                <div class="flex items-center space-x-2 overflow-x-auto max-w-full py-1">
+                                    <template x-for="(pUrl, pIdx) in currentPhotoList()" :key="pIdx">
+                                        <div @click="activePhotoIndex = pIdx" class="w-12 h-12 rounded-lg overflow-hidden border-2 cursor-pointer shrink-0 transition" :class="activePhotoIndex === pIdx ? 'border-blue-500 scale-105 shadow-md' : 'border-slate-700 opacity-60'">
+                                            <img :src="pUrl" class="w-full h-full object-cover">
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="currentPhotoList().length === 0">
+                            <div class="flex flex-col items-center justify-center text-slate-400 p-4 sm:p-8 text-center pointer-events-none">
+                                <i class="fa-solid fa-cloud-arrow-up text-4xl sm:text-5xl mb-2 text-slate-500"></i>
+                                <span class="text-xs sm:text-base font-bold text-slate-300">拖曳照片至此處新增，或使用右側按鈕上傳</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-4 p-4 sm:p-6 flex flex-col justify-between bg-white overflow-y-auto space-y-4">
+                    <div class="space-y-4">
+                        <div>
+                            <span class="text-xs text-slate-400 font-medium">缺失項目資訊</span>
+                            <h3 class="text-base font-bold text-slate-800 mt-0.5" x-text="currentPhotoItem.name"></h3>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="(currentPhotoItem.space || '') + ' ／ ' + (currentPhotoItem.category || '')"></p>
+                        </div>
+                        <hr class="border-slate-100">
+                        <template x-if="hasPermission('edit')">
+                            <div class="space-y-2">
+                                <label class="block text-xs font-semibold text-slate-700">即時拍照 / 上傳檔案 / 拖曳新增</label>
+                                
+                                <label class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span>使用相機即時拍照</span>
+                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadPhotosFromInput($event)">
+                                </label>
+
+                                <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
+                                    <i class="fa-solid fa-upload"></i>
+                                    <span>選擇照片檔案上傳</span>
+                                    <input type="file" accept="image/*" multiple class="hidden" @change="uploadPhotosFromInput($event)">
+                                </label>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="space-y-2 pt-4 border-t border-slate-100">
+                        <template x-if="hasPermission('delete') && currentPhotoList().length > 0">
+                            <button @click="deleteActivePhoto()" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                                <span>刪除當前照片</span>
+                            </button>
+                        </template>
+                        <button @click="closePhotoModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-sm transition">完成並關閉</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增驗屋缺失項目浮動視窗 -->
+    <div x-show="showNewItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-plus text-blue-600"></i>
+                    <span>新增驗屋缺失項目</span>
+                </h2>
+                <button @click="showNewItemModalFlag = false" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">項目名稱 <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="newItemForm.name" placeholder="例如：牆面漆面不平整..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">空間位置</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.space" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('space')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">工種/類別</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.category" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('category')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">驗收方法</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.method" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('method')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">戶別</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.unit" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('unit')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">預計修繕截止日期</label>
+                        <input type="date" x-model="newItemForm.dueDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                    </div>
+
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">備註說明</label>
+                        <textarea x-model="newItemForm.remark" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="輸入其他備註事項..."></textarea>
+                    </div>
+
+                    <div class="md:col-span-2 space-y-2 pt-2 border-t border-slate-100">
+                        <label class="block text-sm font-semibold text-slate-700">上傳缺失照片</label>
+                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 transition hover:bg-slate-100"
+                             @dragover.prevent @drop.prevent="handleNewItemDrop($event)">
+                             
+                            <div class="flex space-x-3 mb-3">
+                                <label class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-camera"></i><span>即時拍照</span>
+                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadNewItemPhotos($event)">
+                                </label>
+                                <label class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-upload"></i><span>選擇照片</span>
+                                    <input type="file" accept="image/*" multiple class="hidden" @change="uploadNewItemPhotos($event)">
+                                </label>
+                            </div>
+                            <p class="text-xs text-slate-400">或將照片拖曳至此處新增</p>
+                        </div>
+                        
+                        <template x-if="newItemForm.defectPhotos.length > 0">
+                            <div class="flex flex-wrap gap-3 mt-3">
+                                <template x-for="(pUrl, pIdx) in newItemForm.defectPhotos" :key="pIdx">
+                                    <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shadow-sm group">
+                                        <img :src="pUrl" class="w-full h-full object-cover">
+                                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer" @click="removeNewItemPhoto(pIdx)">
+                                            <i class="fa-solid fa-trash text-white text-xs"></i>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button @click="showNewItemModalFlag = false" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
+                <button @click="saveNewItem()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存並建立</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯項目 Modal -->
+    <div x-show="showEditItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-pen-to-square text-blue-600"></i>
+                    <span>編輯驗屋缺失項目內容</span>
+                </h2>
+                <button @click="showEditItemModalFlag = false" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block font-semibold text-slate-700">項目名稱 <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="editItemForm.name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">空間位置</label>
+                        <select x-model="editItemForm.space" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">工種/類別</label>
+                        <select x-model="editItemForm.category" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">驗收方法</label>
+                        <select x-model="editItemForm.method" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">戶別</label>
+                        <select x-model="editItemForm.unit" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">修繕狀態</label>
+                        <select x-model="editItemForm.repairStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <option value="待修繕">待修繕</option>
+                            <option value="修繕中">修繕中</option>
+                            <option value="已完成">已完成</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">工檢狀態</label>
+                        <select x-model="editItemForm.inspectionStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <option value="待複查">待複查</option>
+                            <option value="合格">合格</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">預計修繕截止日期</label>
+                        <input type="date" x-model="editItemForm.dueDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">完成日期</label>
+                        <input type="date" x-model="editItemForm.completeDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                    </div>
+
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block font-semibold text-slate-700">備註說明</label>
+                        <textarea x-model="editItemForm.remark" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button @click="showEditItemModalFlag = false" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
+                <button @click="saveEditItem()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯選項選單 Modal -->
+    <div x-show="showOptionEditModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-base font-bold text-slate-800" x-text="'編輯 ' + optionEditTitle + ' 選項'"></h3>
+                <button @click="showOptionEditModalFlag = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-3 max-h-60 overflow-y-auto">
+                <template x-for="(opt, idx) in tempOptionList" :key="idx">
+                    <div class="flex items-center space-x-2">
+                        <input type="text" x-model="tempOptionList[idx]" class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                        <button @click="removeOptionItem(idx)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                </template>
+            </div>
+            <button @click="addOptionItem()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
+                <i class="fa-solid fa-plus"></i><span>新增一項</span>
+            </button>
+            <div class="flex space-x-3 pt-2">
+                <button @click="showOptionEditModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-700">取消</button>
+                <button @click="saveOptionEdit()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold">儲存選項</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯專案名稱 Modal -->
+    <div x-show="showEditProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
+            <h3 class="text-base font-bold text-slate-800">變更當前專案名稱</h3>
+            <input type="text" x-model="tempProjectNameInput" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500">
+            <div class="flex space-x-3 pt-2">
+                <button @click="showEditProjectModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs text-slate-700 font-medium">取消</button>
+                <button @click="saveProjectName()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold">儲存名稱</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 建立新專案 Modal -->
+    <div x-show="showCreateProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
+            <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <i class="fa-solid fa-folder-plus text-emerald-600"></i>
+                <span>建立全新專案</span>
+            </h3>
+            <input type="text" x-model="newProjectNameInput" placeholder="輸入專案名稱..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            <div class="flex space-x-3 pt-2">
+                <button @click="showCreateProjectModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs text-slate-700 font-medium">取消</button>
+                <button @click="createNewProject()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold">建立專案</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alpine.js 核心邏輯 -->
+    <script>
+        function inspectionApp() {
+            return {
+                mobileSidebarOpen: false,
+                activeTab: 'inspection',
+                viewMode: 'table',
+                currentRole: 'Owner',
+                
+                // 新增：Supabase 設定與用戶端實體
+                supabaseUrl: 'https://cpgdfijbebqfvvbnjsqz.supabase.co',
+                supabaseKey: '',
+                supabaseClient: null,
+
+                // 新增：分頁控制狀態
+                currentPage: 1,
+                pageSize: 10,
+
+                // 🔒 網站登入核實狀態
+                isSiteAuthenticated: false,
+                siteLoginAccount: '',
+                siteLoginPassword: '',
+                loginErrorMsg: '',
+                siteAdminAccount: 'Admin8866',
+                siteAdminPassword: 'Admin86392672@',
+                tempAdminAccount: '',
+                tempAdminPassword: '',
+
+                // 👥 多用戶管理
+                systemUsers: [],
+                newSystemUser: { username: '', password: '', name: '', role: 'Inspector' },
+
+                // 🔒 錯誤鎖定機制
+                loginFailedCount: 0,
+                lockoutEndTime: 0,
+                lockoutRemainingSeconds: 0,
+                lockoutTimerInterval: null,
+
+                // 密碼驗證視窗
+                showPasswordModalFlag: false,
+                targetPendingRole: '',
+                passwordPromptTitle: '',
+                enteredPassword: '',
+                ownerPassword: '86392672',
+
+                // 自訂角色
+                customInspectors: [{ id: 1, name: '驗屋專員', title: '資深檢測員', password: '' }],
+                customVendors: [{ id: 1, name: '營造工程', title: '總包廠商', password: '' }],
+                customAdmins: [{ id: 1, name: '工務主管', title: '現場負責人', password: '' }],
+                tempOwnerPassword: '',
+
+                // 專案資料
+                projects: [
+                    { id: 'p1', name: '國泰央北建案 B1 區', items: [] }
+                ],
+                selectedProjectId: 'p1',
+                currentProjectName: '國泰央北建案 B1 區',
+
+                // 驗屋缺失清單
+                items: [
+                    { id: '1', code: 'A301-01', name: '玄關門框刮傷漆面欠佳', space: '玄關', category: '油漆工種', method: '目視檢驗', unit: 'A3-01', repairStatus: '待修繕', inspectionStatus: '待複查', dueDate: '2026-10-15', completeDate: '', inspector: '驗屋專員', remark: '靠近門把下方處有約 3cm 劃痕', defectPhotos: [], repairPhotos: [], inspectionPhotos: [] },
+                    { id: '2', code: 'A301-02', name: '客廳地磚空鼓現象', space: '客廳', category: '泥作工種', method: '敲擊聽音', unit: 'A3-01', repairStatus: '修繕中', inspectionStatus: '待複查', dueDate: '2026-10-20', completeDate: '', inspector: '驗屋專員', remark: '中央第三塊地磚角落敲擊聲異常', defectPhotos: [], repairPhotos: [], inspectionPhotos: [] }
+                ],
+
+                // PDF Form
+                showPdfExportModalFlag: false,
+                pdfForm: {
+                    title: '',
+                    client: '',
+                    projectName: '',
+                    address: '',
+                    remark: '',
+                    photoTypes: ['defect', 'repair'],
+                    scale: 100
+                },
+
+                // 篩選器
+                searchQuery: '',
+                selectedSpaceFilter: '',
+                selectedCategoryFilter: '',
+                selectedUnitFilter: '',
+                filterStatus: '',
+                filterInspectionStatus: '',
+
+                // 批次操作
+                batchMode: false,
+                selectedItemIds: [],
+                batchTargetSpace: '',
+                batchTargetStatus: '',
+                pressTimer: null,
+
+                // 表格欄位拖曳
+                tableColumns: [
+                    { key: 'code', label: '編號', width: '90px' },
+                    { key: 'name', label: '缺失名稱 / 驗收方法', width: '200px' },
+                    { key: 'space', label: '空間', width: '100px' },
+                    { key: 'category', label: '類別/工種', width: '120px' },
+                    { key: 'unit', label: '戶別', width: '90px' },
+                    { key: 'defectPhotos', label: '缺失照片', width: '90px', align: 'center' },
+                    { key: 'repairPhotos', label: '修繕照片', width: '90px', align: 'center' },
+                    { key: 'inspectionPhotos', label: '工檢照片', width: '90px', align: 'center' },
+                    { key: 'repairStatus', label: '修繕狀態', width: '110px' },
+                    { key: 'inspectionStatus', label: '工檢狀態', width: '100px' },
+                    { key: 'dueDate', label: '預計完成', width: '110px' },
+                    { key: 'completeDate', label: '實際完成', width: '110px' },
+                    { key: 'inspector', label: '檢驗員', width: '100px' },
+                    { key: 'remark', label: '備註說明', width: '150px' },
+                    { key: 'action', label: '操作', width: '90px', align: 'center' }
+                ],
+                draggedColIndex: null,
+
+                // 選項選單
+                spaceList: ['玄關', '客廳', '主臥', '次臥', '廚房', '陽台', '主衛浴', '客衛浴'],
+                categoryList: ['油漆工種', '泥作工種', '水電工種', '木作工種', '鋁窗工種', '門扇工種'],
+                methodList: ['目視檢驗', '敲擊聽音', '儀器量測', '通水測試', '通電測試'],
+                unitList: ['A3-01', 'A3-02', 'B1-05', 'B1-06'],
+
+                // 圖庫 Modal
+                showGalleryModalFlag: false,
+                galleryPhotoType: 'defect',
+                galleryColumnsVisible: { nameMethod: true, space: true, unit: true, repairStatus: true, inspectionStatus: true },
+
+                // 相片 Modal
+                showPhotoModalFlag: false,
+                currentPhotoItem: {},
+                currentPhotoType: 'defect',
+                activePhotoIndex: 0,
+
+                // 各式 Modal 狀態
+                showNewItemModalFlag: false,
+                newItemForm: { name: '', space: '玄關', category: '油漆工種', method: '目視檢驗', unit: 'A3-01', dueDate: '', remark: '', defectPhotos: [] },
+
+                showEditItemModalFlag: false,
+                editItemForm: {},
+
+                showOptionEditModalFlag: false,
+                optionEditTargetKey: '',
+                optionEditTitle: '',
+                tempOptionList: [],
+
+                showEditProjectModalFlag: false,
+                tempProjectNameInput: '',
+
+                showCreateProjectModalFlag: false,
+                newProjectNameInput: '',
+
+                // 圖表統計
+                analyticsProjectId: 'p1',
+                analyticsSpace: '',
+                analyticsUnit: '',
+                analyticsCategory: '',
+                analyticsChartType: 'pie',
+
+                init() {
+                    // 1. 初始化 Supabase
+                    const savedKey = localStorage.getItem('hongyuan_supabase_key');
+                    const savedUrl = localStorage.getItem('hongyuan_supabase_url');
+                    if (savedUrl) this.supabaseUrl = savedUrl;
+                    if (savedKey) this.supabaseKey = savedKey;
+                    this.initSupabase();
+
+                    const savedAdminAcc = localStorage.getItem('hongyuan_admin_account');
+                    const savedAdminPwd = localStorage.getItem('hongyuan_admin_password');
+                    if (savedAdminAcc) this.siteAdminAccount = savedAdminAcc;
+                    if (savedAdminPwd) this.siteAdminPassword = savedAdminPwd;
+                    this.tempAdminAccount = this.siteAdminAccount;
+                    this.tempAdminPassword = this.siteAdminPassword;
+
+                    const savedUsers = localStorage.getItem('hongyuan_system_users');
+                    if (savedUsers) {
+                        try { this.systemUsers = JSON.parse(savedUsers); } catch(e){}
+                    }
+
+                    this.checkLockoutStatus();
+
+                    const savedProjects = localStorage.getItem('hongyuan_projects');
+                    if (savedProjects) {
+                        try {
+                            this.projects = JSON.parse(savedProjects);
+                            if (this.projects.length > 0) {
+                                this.selectedProjectId = this.projects[0].id;
+                                this.currentProjectName = this.projects[0].name;
+                                this.items = this.projects[0].items || [];
+                            }
+                        } catch(e) {}
+                    } else {
+                        this.projects[0].items = [...this.items];
+                        this.saveProjectsToStorage();
+                    }
+                },
+
+                // 新增：初始化與儲存 Supabase 連線
+                initSupabase() {
+                    if (window.supabase && this.supabaseUrl && this.supabaseKey) {
+                        this.supabaseClient = window.supabase.createClient(this.supabaseUrl, this.supabaseKey);
+                    }
+                },
+                saveSupabaseConfig() {
+                    localStorage.setItem('hongyuan_supabase_url', this.supabaseUrl.trim());
+                    localStorage.setItem('hongyuan_supabase_key', this.supabaseKey.trim());
+                    this.initSupabase();
+                    alert('Supabase 金鑰已儲存！');
+                },
+
+                // 新增：上傳照片至 Supabase 儲存桶或備用 URL 轉換
+                async uploadImageToCloud(file) {
+                    if (this.supabaseClient) {
+                        const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
+                        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+                        const filePath = `photos/${fileName}`;
+                        const { data, error } = await this.supabaseClient.storage.from('inspection-photos').upload(filePath, file);
+                        if (!error && data) {
+                            const { data: publicUrlData } = this.supabaseClient.storage.from('inspection-photos').getPublicUrl(filePath);
+                            return publicUrlData.publicUrl;
+                        } else {
+                            console.warn('Supabase 上傳失敗，降級本地處理:', error);
+                        }
+                    }
+                    // 若無 Supabase 連線則回傳本地轉 DataURL（備用處理）
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => resolve(evt.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                },
+
+                handleSiteLogin() {
+                    if (this.lockoutRemainingSeconds > 0) return;
+
+                    const inputAcc = this.siteLoginAccount.trim();
+                    const inputPwd = this.siteLoginPassword.trim();
+
+                    if (!inputAcc || !inputPwd) {
+                        this.loginErrorMsg = '請輸入帳號與密碼！';
+                        return;
+                    }
+
+                    if (inputAcc === this.siteAdminAccount && inputPwd === this.siteAdminPassword) {
+                        this.loginSuccess('Owner');
+                        return;
+                    }
+
+                    const foundUser = this.systemUsers.find(u => u.username === inputAcc && u.password === inputPwd);
+                    if (foundUser) {
+                        this.loginSuccess(foundUser.role || 'Inspector');
+                        return;
+                    }
+
+                    this.loginFailedCount++;
+                    localStorage.setItem('hongyuan_login_failed_count', this.loginFailedCount);
+
+                    if (this.loginFailedCount >= 5) {
+                        this.lockoutEndTime = Date.now() + (3 * 60 * 1000);
+                        localStorage.setItem('hongyuan_lockout_endtime', this.lockoutEndTime);
+                        this.startLockoutCountdown();
+                        this.loginErrorMsg = '';
+                    } else {
+                        const remain = 5 - this.loginFailedCount;
+                        this.loginErrorMsg = `帳號或密碼錯誤！剩餘可嘗試次數：${remain} 次`;
+                    }
+                },
+
+                loginSuccess(role) {
+                    this.isSiteAuthenticated = true;
+                    this.currentRole = role;
+                    this.loginFailedCount = 0;
+                    this.siteLoginPassword = '';
+                    this.loginErrorMsg = '';
+                    localStorage.setItem('hongyuan_login_failed_count', 0);
+                    localStorage.removeItem('hongyuan_lockout_endtime');
+                },
+
+                checkLockoutStatus() {
+                    const savedFailedCount = localStorage.getItem('hongyuan_login_failed_count');
+                    if (savedFailedCount) this.loginFailedCount = parseInt(savedFailedCount) || 0;
+
+                    const savedLockoutEnd = localStorage.getItem('hongyuan_lockout_endtime');
+                    if (savedLockoutEnd) {
+                        this.lockoutEndTime = parseInt(savedLockoutEnd) || 0;
+                        if (Date.now() < this.lockoutEndTime) {
+                            this.startLockoutCountdown();
+                        } else {
+                            this.resetLockout();
+                        }
+                    }
+                },
+
+                startLockoutCountdown() {
+                    const updateTimer = () => {
+                        const diff = Math.ceil((this.lockoutEndTime - Date.now()) / 1000);
+                        if (diff <= 0) {
+                            this.resetLockout();
+                        } else {
+                            this.lockoutRemainingSeconds = diff;
+                        }
+                    };
+                    updateTimer();
+                    if (this.lockoutTimerInterval) clearInterval(this.lockoutTimerInterval);
+                    this.lockoutTimerInterval = setInterval(updateTimer, 1000);
+                },
+
+                resetLockout() {
+                    if (this.lockoutTimerInterval) clearInterval(this.lockoutTimerInterval);
+                    this.lockoutRemainingSeconds = 0;
+                    this.loginFailedCount = 0;
+                    this.lockoutEndTime = 0;
+                    this.loginErrorMsg = '';
+                    localStorage.setItem('hongyuan_login_failed_count', 0);
+                    localStorage.removeItem('hongyuan_lockout_endtime');
+                },
+
+                formatLockoutTime(seconds) {
+                    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                    const s = (seconds % 60).toString().padStart(2, '0');
+                    return `${m}:${s}`;
+                },
+
+                saveAdminCredentials() {
+                    if (this.tempAdminAccount.trim() && this.tempAdminPassword.trim()) {
+                        this.siteAdminAccount = this.tempAdminAccount.trim();
+                        this.siteAdminPassword = this.tempAdminPassword.trim();
+                        localStorage.setItem('hongyuan_admin_account', this.siteAdminAccount);
+                        localStorage.setItem('hongyuan_admin_password', this.siteAdminPassword);
+                        alert('最高權限帳號與密碼已成功更新！');
+                    } else {
+                        alert('最高權限帳號與密碼不可為空！');
+                    }
+                },
+
+                addSystemUser() {
+                    if (this.systemUsers.length >= 20) {
+                        alert('已達系統用戶上限（最多 20 組）！');
+                        return;
+                    }
+                    if (!this.newSystemUser.username.trim() || !this.newSystemUser.password.trim()) {
+                        alert('請輸入用戶帳號與密碼！');
+                        return;
+                    }
+                    const exists = this.systemUsers.some(u => u.username === this.newSystemUser.username.trim());
+                    if (exists || this.newSystemUser.username.trim() === this.siteAdminAccount) {
+                        alert('此帳號已存在，請使用不同的帳號！');
+                        return;
+                    }
+                    this.systemUsers.push({
+                        id: Date.now(),
+                        username: this.newSystemUser.username.trim(),
+                        password: this.newSystemUser.password.trim(),
+                        name: this.newSystemUser.name.trim(),
+                        role: this.newSystemUser.role
+                    });
+                    this.saveSystemUsers();
+                    this.newSystemUser = { username: '', password: '', name: '', role: 'Inspector' };
+                    alert('新增用戶成功！');
+                },
+
+                removeSystemUser(id) {
+                    if (confirm('確定要刪除此用戶帳號？')) {
+                        this.systemUsers = this.systemUsers.filter(u => u.id !== id);
+                        this.saveSystemUsers();
+                    }
+                },
+
+                saveSystemUsers() {
+                    localStorage.setItem('hongyuan_system_users', JSON.stringify(this.systemUsers));
+                },
+
+                // 💾 專案儲存機制
+                saveProjectsToStorage() {
+                    const pIndex = this.projects.findIndex(p => p.id === this.selectedProjectId);
+                    if (pIndex !== -1) {
+                        this.projects[pIndex].items = JSON.parse(JSON.stringify(this.items));
+                        this.projects[pIndex].name = this.currentProjectName;
+                    }
+                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                },
+
+                get filteredItems() {
+                    return this.items.filter(item => {
+                        const q = this.searchQuery.toLowerCase();
+                        const matchQuery = !q || (item.name && item.name.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)) || (item.code && item.code.toLowerCase().includes(q));
+                        const matchSpace = !this.selectedSpaceFilter || item.space === this.selectedSpaceFilter;
+                        const matchCat = !this.selectedCategoryFilter || item.category === this.selectedCategoryFilter;
+                        const matchUnit = !this.selectedUnitFilter || item.unit === this.selectedUnitFilter;
+                        const matchStatus = !this.filterStatus || item.repairStatus === this.filterStatus;
+                        const matchInsp = !this.filterInspectionStatus || item.inspectionStatus === this.filterInspectionStatus;
+                        return matchQuery && matchSpace && matchCat && matchUnit && matchStatus && matchInsp;
+                    });
+                },
+
+                // 新增：分頁計算屬性
+                get totalPages() {
+                    return Math.ceil(this.filteredItems.length / this.pageSize) || 1;
+                },
+                get paginatedItems() {
+                    const start = (this.currentPage - 1) * this.pageSize;
+                    return this.filteredItems.slice(start, start + this.pageSize);
+                },
+
+                get spaceOptions() { return [...new Set(this.items.map(i => i.space).filter(Boolean))]; },
+                get categoryOptions() { return [...new Set(this.items.map(i => i.category).filter(Boolean))]; },
+                get unitOptions() { return [...new Set(this.items.map(i => i.unit).filter(Boolean))]; },
+
+                // 🔒 權限管控判斷（新增 createProject 獨立判定）
+                hasPermission(action) {
+                    if (this.currentRole === 'Owner') return true;
+                    if (this.currentRole === 'Viewer') return false;
+                    if (action === 'createProject') return false; // 🔒 只有最高權限 (Owner) 可以新增與刪除專案
+                    if (action === 'edit' || action === 'create') return true;
+                    if (action === 'delete') return this.currentRole.startsWith('Admin') || this.currentRole === 'Owner';
+                    return true;
+                },
+
+                currentRoleName() {
+                    if (this.currentRole === 'Owner') return '最高權限 (Owner)';
+                    if (this.currentRole === 'Viewer') return '純觀看者 (Viewer)';
+                    if (this.currentRole.startsWith('CustomInspector_')) {
+                        const id = parseInt(this.currentRole.split('_')[1]);
+                        const item = this.customInspectors.find(x => x.id === id);
+                        return item ? `${item.name} (${item.title})` : '驗屋人員';
+                    }
+                    if (this.currentRole.startsWith('CustomVendor_')) {
+                        const id = parseInt(this.currentRole.split('_')[1]);
+                        const item = this.customVendors.find(x => x.id === id);
+                        return item ? `${item.name} (${item.title})` : '廠商';
+                    }
+                    if (this.currentRole.startsWith('CustomAdmin_')) {
+                        const id = parseInt(this.currentRole.split('_')[1]);
+                        const item = this.customAdmins.find(x => x.id === id);
+                        return item ? `${item.name} (${item.title})` : '工務/管理員';
+                    }
+                    if (this.currentRole === 'Inspector') return this.customInspectors[0] ? `${this.customInspectors[0].name}` : '驗屋人員';
+                    if (this.currentRole === 'Vendor') return this.customVendors[0] ? `${this.customVendors[0].name}` : '廠商';
+                    if (this.currentRole === 'Admin') return this.customAdmins[0] ? `${this.customAdmins[0].name}` : '工務/管理員';
+                    return this.currentRole;
+                },
+
+                onRoleSelectChange(e) {
+                    const val = e.target.value;
+                    if (val === 'Viewer') {
+                        this.currentRole = 'Viewer';
+                        return;
+                    }
+                    this.targetPendingRole = val;
+                    this.passwordPromptTitle = `切換至 [${this.getRoleLabel(val)}] 需要身份驗證密碼`;
+                    this.enteredPassword = '';
+                    this.showPasswordModalFlag = true;
+                },
+
+                getRoleLabel(roleKey) {
+                    if (roleKey === 'Owner') return '最高權限者';
+                    if (roleKey === 'Inspector' || roleKey.startsWith('CustomInspector_')) return '驗屋人員';
+                    if (roleKey === 'Vendor' || roleKey.startsWith('CustomVendor_')) return '廠商';
+                    if (roleKey === 'Admin' || roleKey.startsWith('CustomAdmin_')) return '工務/管理員';
+                    if (roleKey === 'Viewer') return '純觀看者';
+                    return roleKey;
+                },
+
+                verifyPassword() {
+                    let correctPwd = '';
+                    if (this.targetPendingRole === 'Owner') correctPwd = this.ownerPassword;
+                    else if (this.targetPendingRole === 'Inspector') correctPwd = this.customInspectors[0]?.password || '';
+                    else if (this.targetPendingRole.startsWith('CustomInspector_')) {
+                        const id = parseInt(this.targetPendingRole.split('_')[1]);
+                        correctPwd = this.customInspectors.find(x => x.id === id)?.password || '';
+                    } else if (this.targetPendingRole === 'Vendor') correctPwd = this.customVendors[0]?.password || '';
+                    else if (this.targetPendingRole.startsWith('CustomVendor_')) {
+                        const id = parseInt(this.targetPendingRole.split('_')[1]);
+                        correctPwd = this.customVendors.find(x => x.id === id)?.password || '';
+                    } else if (this.targetPendingRole === 'Admin') correctPwd = this.customAdmins[0]?.password || '';
+                    else if (this.targetPendingRole.startsWith('CustomAdmin_')) {
+                        const id = parseInt(this.targetPendingRole.split('_')[1]);
+                        correctPwd = this.customAdmins.find(x => x.id === id)?.password || '';
+                    }
+
+                    if (this.enteredPassword === correctPwd || correctPwd === '') {
+                        this.currentRole = this.targetPendingRole;
+                        this.showPasswordModalFlag = false;
+                    } else {
+                        alert('密碼錯誤！無法切換身份。');
+                        this.currentRole = 'Viewer';
+                        this.showPasswordModalFlag = false;
+                    }
+                },
+
+                cancelPasswordModal() {
+                    this.showPasswordModalFlag = false;
+                },
+
+                checkSettingsAccess() {
+                    this.targetPendingRole = 'Owner';
+                    this.passwordPromptTitle = '進入【系統參數設定】需驗證 Owner 密碼';
+                    this.enteredPassword = '';
+                    this.showPasswordModalFlag = true;
+                    const origVerify = this.verifyPassword;
+                    this.verifyPassword = () => {
+                        if (this.enteredPassword === this.ownerPassword || this.enteredPassword === this.siteAdminPassword) {
+                            this.activeTab = 'settings';
+                            this.showPasswordModalFlag = false;
+                        } else {
+                            alert('密碼錯誤！');
+                            this.showPasswordModalFlag = false;
+                        }
+                        this.verifyPassword = origVerify;
+                    };
+                },
+
+                openPdfExportModal() {
+                    this.pdfForm.title = this.currentProjectName;
+                    this.pdfForm.projectName = this.currentProjectName;
+                    this.pdfForm.scale = 100;
+                    this.showPdfExportModalFlag = true;
+                },
+
+                togglePdfPhotoType(type) {
+                    if (this.pdfForm.photoTypes.includes(type)) {
+                        if (this.pdfForm.photoTypes.length > 1) {
+                            this.pdfForm.photoTypes = this.pdfForm.photoTypes.filter(t => t !== type);
+                        }
+                    } else {
+                        if (this.pdfForm.photoTypes.length < 2) {
+                            this.pdfForm.photoTypes.push(type);
+                        } else {
+                            this.pdfForm.photoTypes.shift();
+                            this.pdfForm.photoTypes.push(type);
+                        }
+                    }
+                },
+
+                exportToPdf() {
+                    const element = document.getElementById('pdf-export-template');
+                    if (!element) return;
+
+                    const scaleFactor = (this.pdfForm.scale || 100) / 100;
+                    const origTransform = element.style.transform;
+                    const origOrigin = element.style.transformOrigin;
+
+                    if (scaleFactor !== 1) {
+                        element.style.transform = `scale(${scaleFactor})`;
+                        element.style.transformOrigin = 'top left';
+                    }
+
+                    const opt = {
+                        margin: 5,
+                        filename: `${this.pdfForm.title || '驗屋缺失報告'}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true, logging: false },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        element.style.transform = origTransform;
+                        element.style.transformOrigin = origOrigin;
+                        this.showPdfExportModalFlag = false;
+                    }).catch(err => {
+                        console.error('PDF 匯出失敗', err);
+                        element.style.transform = origTransform;
+                        element.style.transformOrigin = origOrigin;
+                    });
+                },
+
+                // 🔄 修正：安全切換專案（先同步舊資料，再載入目標專案）
+                switchProjectById(targetId) {
+                    if (!targetId || targetId === this.selectedProjectId) return;
+
+                    // 1. 先將當前記憶體中的 items 同步回當前 selectedProjectId 物件
+                    const currentIdx = this.projects.findIndex(p => p.id === this.selectedProjectId);
+                    if (currentIdx !== -1) {
+                        this.projects[currentIdx].items = JSON.parse(JSON.stringify(this.items));
+                        this.projects[currentIdx].name = this.currentProjectName;
+                    }
+
+                    // 2. 找到目標專案並載入
+                    const targetProj = this.projects.find(x => x.id === targetId);
+                    if (targetProj) {
+                        this.selectedProjectId = targetProj.id;
+                        this.currentProjectName = targetProj.name;
+                        this.items = JSON.parse(JSON.stringify(targetProj.items || []));
+                    }
+
+                    this.currentPage = 1;
+
+                    // 3. 寫入 localStorage 存檔
+                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                },
+
+                openEditProjectModal() {
+                    this.tempProjectNameInput = this.currentProjectName;
+                    this.showEditProjectModalFlag = true;
+                },
+
+                saveProjectName() {
+                    if (this.tempProjectNameInput.trim()) {
+                        this.currentProjectName = this.tempProjectNameInput.trim();
+                        this.saveProjectsToStorage();
+                        this.showEditProjectModalFlag = false;
+                    }
+                },
+
+                openCreateProjectModal() {
+                    if (!this.hasPermission('createProject')) {
+                        alert('只有最高權限 (Owner) 才可以建立新專案！');
+                        return;
+                    }
+                    this.newProjectNameInput = '';
+                    this.showCreateProjectModalFlag = true;
+                },
+
+                // 🔒 建立新專案（加入權限檢驗與安全切換）
+                createNewProject() {
+                    if (!this.hasPermission('createProject')) {
+                        alert('只有最高權限 (Owner) 才可以建立新專案！');
+                        return;
+                    }
+                    if (!this.newProjectNameInput.trim()) return;
+
+                    // 先儲存目前專案狀況
+                    this.saveProjectsToStorage();
+
+                    const newProj = {
+                        id: 'p_' + Date.now(),
+                        name: this.newProjectNameInput.trim(),
+                        items: []
+                    };
+                    this.projects.push(newProj);
+                    
+                    // 安全切換至新專案
+                    this.selectedProjectId = newProj.id;
+                    this.currentProjectName = newProj.name;
+                    this.items = [];
+                    this.currentPage = 1;
+                    this.saveProjectsToStorage();
+
+                    this.showCreateProjectModalFlag = false;
+                    this.activeTab = 'inspection';
+                },
+
+                // 🔒 刪除專案（僅限 Owner 專屬）
+                deleteProject(id) {
+                    if (!this.hasPermission('createProject')) {
+                        alert('只有最高權限 (Owner) 才可以刪除專案！');
+                        return;
+                    }
+                    if (this.projects.length <= 1) {
+                        alert('最少需保留一個專案！');
+                        return;
+                    }
+                    if (confirm('確定要刪除此專案與專案內所有項目嗎？')) {
+                        this.projects = this.projects.filter(p => p.id !== id);
+                        if (this.selectedProjectId === id) {
+                            const firstProj = this.projects[0];
+                            this.selectedProjectId = firstProj.id;
+                            this.currentProjectName = firstProj.name;
+                            this.items = JSON.parse(JSON.stringify(firstProj.items || []));
+                        }
+                        this.currentPage = 1;
+                        localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                    }
+                },
+
+                getPhotosByType(item, type) {
+                    if (!item) return [];
+                    if (type === 'defect') return item.defectPhotos || [];
+                    if (type === 'repair') return item.repairPhotos || [];
+                    if (type === 'inspection') return item.inspectionPhotos || [];
+                    return [];
+                },
+
+                currentPhotoList() {
+                    return this.getPhotosByType(this.currentPhotoItem, this.currentPhotoType);
+                },
+
+                openPhotoModal(item, type) {
+                    this.currentPhotoItem = item;
+                    this.currentPhotoType = type;
+                    this.activePhotoIndex = 0;
+                    this.showPhotoModalFlag = true;
+                },
+
+                closePhotoModal() {
+                    this.showPhotoModalFlag = false;
+                    this.saveProjectsToStorage();
+                },
+
+                // 修正：結合雲端上傳處理
+                async uploadPhotosFromInput(e) {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        const photoUrl = await this.uploadImageToCloud(file);
+                        const listKey = this.currentPhotoType + 'Photos';
+                        if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
+                        this.currentPhotoItem[listKey].push(photoUrl);
+                        this.saveProjectsToStorage();
+                    }
+                },
+
+                // 修正：結合雲端上傳拖曳處理
+                async handleFileDrop(e) {
+                    const files = e.dataTransfer.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        if (file.type.startsWith('image/')) {
+                            const photoUrl = await this.uploadImageToCloud(file);
+                            const listKey = this.currentPhotoType + 'Photos';
+                            if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
+                            this.currentPhotoItem[listKey].push(photoUrl);
+                            this.saveProjectsToStorage();
+                        }
+                    }
+                },
+
+                deleteActivePhoto() {
+                    const listKey = this.currentPhotoType + 'Photos';
+                    if (this.currentPhotoItem[listKey] && this.currentPhotoItem[listKey].length > 0) {
+                        this.currentPhotoItem[listKey].splice(this.activePhotoIndex, 1);
+                        if (this.activePhotoIndex >= this.currentPhotoItem[listKey].length) {
+                            this.activePhotoIndex = Math.max(0, this.currentPhotoItem[listKey].length - 1);
+                        }
+                        this.saveProjectsToStorage();
+                    }
+                },
+
+                openOriginalImageView() {
+                    const list = this.currentPhotoList();
+                    if (list.length > 0) {
+                        window.open(list[this.activePhotoIndex], '_blank');
+                    }
+                },
+
+                onStatusOrPhotoChange(item) {
+                    if (item.repairStatus === '已完成' && !item.completeDate) {
+                        item.completeDate = new Date().toISOString().split('T')[0];
+                    }
+                    this.saveProjectsToStorage();
+                },
+
+                startRowPress(id) {
+                    this.pressTimer = setTimeout(() => {
+                        this.batchMode = true;
+                        if (!this.selectedItemIds.includes(id)) {
+                            this.selectedItemIds.push(id);
+                        }
+                    }, 600);
+                },
+
+                cancelRowPress() {
+                    if (this.pressTimer) clearTimeout(this.pressTimer);
+                },
+
+                toggleSelectAll() {
+                    if (this.selectedItemIds.length === this.filteredItems.length) {
+                        this.selectedItemIds = [];
+                    } else {
+                        this.selectedItemIds = this.filteredItems.map(i => i.id);
+                    }
+                },
+
+                applyBatchSpace() {
+                    if (!this.batchTargetSpace) return;
+                    this.items.forEach(i => {
+                        if (this.selectedItemIds.includes(i.id)) i.space = this.batchTargetSpace;
+                    });
+                    this.saveProjectsToStorage();
+                },
+
+                applyBatchStatus() {
+                    if (!this.batchTargetStatus) return;
+                    this.items.forEach(i => {
+                        if (this.selectedItemIds.includes(i.id)) {
+                            i.repairStatus = this.batchTargetStatus;
+                            if (i.repairStatus === '已完成' && !i.completeDate) {
+                                i.completeDate = new Date().toISOString().split('T')[0];
+                            }
+                        }
+                    });
+                    this.saveProjectsToStorage();
+                },
+
+                deleteBatchItems() {
+                    if (confirm(`確定刪除所選取的 ${this.selectedItemIds.length} 個項目？`)) {
+                        this.items = this.items.filter(i => !this.selectedItemIds.includes(i.id));
+                        this.selectedItemIds = [];
+                        this.saveProjectsToStorage();
+                    }
+                },
+
+                exitBatchMode() {
+                    this.batchMode = false;
+                    this.selectedItemIds = [];
+                },
+
+                handleHeaderDragStart(e, idx) {
+                    this.draggedColIndex = idx;
+                },
+
+                handleHeaderDrop(e, idx) {
+                    if (this.draggedColIndex !== null && this.draggedColIndex !== idx) {
+                        const movedCol = this.tableColumns.splice(this.draggedColIndex, 1)[0];
+                        this.tableColumns.splice(idx, 0, movedCol);
+                    }
+                    this.draggedColIndex = null;
+                },
+
+                openNewItemModal() {
+                    this.newItemForm = {
+                        name: '',
+                        space: this.spaceList[0] || '玄關',
+                        category: this.categoryList[0] || '油漆工種',
+                        method: this.methodList[0] || '目視檢驗',
+                        unit: this.unitList[0] || 'A3-01',
+                        dueDate: '',
+                        remark: '',
+                        defectPhotos: []
+                    };
+                    this.showNewItemModalFlag = true;
+                },
+
+                async uploadNewItemPhotos(e) {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        const photoUrl = await this.uploadImageToCloud(file);
+                        this.newItemForm.defectPhotos.push(photoUrl);
+                    }
+                },
+
+                async handleNewItemDrop(e) {
+                    const files = e.dataTransfer.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        if (file.type.startsWith('image/')) {
+                            const photoUrl = await this.uploadImageToCloud(file);
+                            this.newItemForm.defectPhotos.push(photoUrl);
+                        }
+                    }
+                },
+
+                removeNewItemPhoto(idx) {
+                    this.newItemForm.defectPhotos.splice(idx, 1);
+                },
+
+                saveNewItem() {
+                    if (!this.newItemForm.name.trim()) {
+                        alert('請輸入項目名稱！');
+                        return;
+                    }
+                    const newItem = {
+                        id: Date.now().toString(),
+                        code: 'ITEM-' + (this.items.length + 1).toString().padStart(2, '0'),
+                        name: this.newItemForm.name.trim(),
+                        space: this.newItemForm.space,
+                        category: this.newItemForm.category,
+                        method: this.newItemForm.method,
+                        unit: this.newItemForm.unit,
+                        repairStatus: '待修繕',
+                        inspectionStatus: '待複查',
+                        dueDate: this.newItemForm.dueDate,
+                        completeDate: '',
+                        inspector: this.currentRoleName(),
+                        remark: this.newItemForm.remark,
+                        defectPhotos: [...this.newItemForm.defectPhotos],
+                        repairPhotos: [],
+                        inspectionPhotos: []
+                    };
+                    this.items.unshift(newItem);
+                    this.saveProjectsToStorage();
+                    this.showNewItemModalFlag = false;
+                },
+
+                openEditModal(item) {
+                    this.editItemForm = JSON.parse(JSON.stringify(item));
+                    this.showEditItemModalFlag = true;
+                },
+
+                saveEditItem() {
+                    const index = this.items.findIndex(i => i.id === this.editItemForm.id);
+                    if (index !== -1) {
+                        this.items[index] = { ...this.editItemForm };
+                        this.saveProjectsToStorage();
+                    }
+                    this.showEditItemModalFlag = false;
+                },
+
+                deleteItem(id) {
+                    if (confirm('確定要刪除此驗屋缺失項目？')) {
+                        this.items = this.items.filter(i => !this.selectedItemIds.includes(i.id) && i.id !== id);
+                        this.saveProjectsToStorage();
+                    }
+                },
+
+                openOptionEdit(key) {
+                    this.optionEditTargetKey = key;
+                    if (key === 'space') { this.optionEditTitle = '空間位置'; this.tempOptionList = [...this.spaceList]; }
+                    if (key === 'category') { this.optionEditTitle = '工種/類別'; this.tempOptionList = [...this.categoryList]; }
+                    if (key === 'method') { this.optionEditTitle = '驗收方法'; this.tempOptionList = [...this.methodList]; }
+                    if (key === 'unit') { this.optionEditTitle = '戶別'; this.tempOptionList = [...this.unitList]; }
+                    this.showOptionEditModalFlag = true;
+                },
+
+                addOptionItem() {
+                    this.tempOptionList.push('新選項');
+                },
+
+                removeOptionItem(idx) {
+                    this.tempOptionList.splice(idx, 1);
+                },
+
+                saveOptionEdit() {
+                    const filtered = this.tempOptionList.map(s => s.trim()).filter(Boolean);
+                    if (this.optionEditTargetKey === 'space') this.spaceList = filtered;
+                    if (this.optionEditTargetKey === 'category') this.categoryList = filtered;
+                    if (this.optionEditTargetKey === 'method') this.methodList = filtered;
+                    if (this.optionEditTargetKey === 'unit') this.unitList = filtered;
+                    this.showOptionEditModalFlag = false;
+                },
+
+                openGalleryModal() {
+                    this.viewMode = 'gallery';
+                    this.showGalleryModalFlag = true;
+                },
+
+                closeGalleryModal() {
+                    this.showGalleryModalFlag = false;
+                },
+
+                saveOwnerPassword() {
+                    if (this.tempOwnerPassword.trim()) {
+                        this.ownerPassword = this.tempOwnerPassword.trim();
+                        alert('Owner 密碼已更新！');
+                        this.tempOwnerPassword = '';
+                    }
+                },
+
+                addInspector() {
+                    if (this.customInspectors.length < 5) {
+                        this.customInspectors.push({ id: Date.now(), name: '新驗屋員', title: '檢測員', password: '' });
+                    }
+                },
+                removeInspector(id) {
+                    this.customInspectors = this.customInspectors.filter(x => x.id !== id);
+                },
+
+                addVendor() {
+                    if (this.customVendors.length < 5) {
+                        this.customVendors.push({ id: Date.now(), name: '新廠商', title: '配合廠商', password: '' });
+                    }
+                },
+                removeVendor(id) {
+                    this.customVendors = this.customVendors.filter(x => x.id !== id);
+                },
+
+                addAdmin() {
+                    if (this.customAdmins.length < 5) {
+                        this.customAdmins.push({ id: Date.now(), name: '新工務', title: '管理員', password: '' });
+                    }
+                },
+                removeAdmin(id) {
+                    this.customAdmins = this.customAdmins.filter(x => x.id !== id);
+                },
+
+                switchAnalyticsProject(projId) {
+                    const p = this.projects.find(x => x.id === projId);
+                    if (p) {
+                        this.analyticsSpace = '';
+                        this.analyticsUnit = '';
+                        this.analyticsCategory = '';
+                    }
+                },
+
+                get analyticsCurrentProjectItems() {
+                    const p = this.projects.find(x => x.id === this.analyticsProjectId);
+                    return p ? (p.items || []) : [];
+                },
+
+                get analyticsSpaceList() {
+                    return [...new Set(this.analyticsCurrentProjectItems.map(i => i.space).filter(Boolean))];
+                },
+                get analyticsUnitList() {
+                    return [...new Set(this.analyticsCurrentProjectItems.map(i => i.unit).filter(Boolean))];
+                },
+                get analyticsCategoryList() {
+                    return [...new Set(this.analyticsCurrentProjectItems.map(i => i.category).filter(Boolean))];
+                },
+
+                get analyticsFilteredItems() {
+                    return this.analyticsCurrentProjectItems.filter(i => {
+                        const mSpace = !this.analyticsSpace || i.space === this.analyticsSpace;
+                        const mUnit = !this.analyticsUnit || i.unit === this.analyticsUnit;
+                        const mCat = !this.analyticsCategory || i.category === this.analyticsCategory;
+                        return mSpace && mUnit && mCat;
+                    });
+                },
+
+                get analyticsCompletedCount() {
+                    return this.analyticsFilteredItems.filter(i => i.repairStatus === '已完成').length;
+                },
+
+                get analyticsCompletionRate() {
+                    if (this.analyticsFilteredItems.length === 0) return 0;
+                    return Math.round((this.analyticsCompletedCount / this.analyticsFilteredItems.length) * 100);
+                }
+            };
+        }
+    </script>
+</body>
+</html>
