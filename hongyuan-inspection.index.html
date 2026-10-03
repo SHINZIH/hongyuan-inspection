@@ -67,8 +67,8 @@
                 <div class="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-3 rounded-xl text-xs font-medium" x-text="loginErrorMsg"></div>
             </template>
 
-            <button @click="handleSiteLogin()" :disabled="lockoutRemainingSeconds > 0" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                <span x-text="lockoutRemainingSeconds > 0 ? '系統鎖定中...' : '核實身分並進入網站'"></span>
+            <button @click="handleSiteLogin()" :disabled="lockoutRemainingSeconds > 0 || isLoggingIn" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-text="lockoutRemainingSeconds > 0 ? '系統鎖定中...' : (isLoggingIn ? '登入驗證中...' : '核實身分並進入網站')"></span>
             </button>
 
             <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-700/50">
@@ -1735,6 +1735,7 @@
                 currentRole: 'Viewer',
                 authRole: 'Viewer',
                 authUser: null,
+                isLoggingIn: false,
                 photoUrlCache: {},
                 
                 // Supabase 雲端對接與 Realtime 廣播狀態
@@ -1979,6 +1980,72 @@
                         console.error('Supabase 初始化失敗:', err);
                         this.supabaseClient = null;
                         this.isRealtimeConnected = false;
+                    }
+                },
+
+                async handleSiteLogin() {
+                    if (this.lockoutRemainingSeconds > 0 || this.isLoggingIn) return;
+
+                    const email = (this.siteLoginAccount || '').trim();
+                    const password = this.siteLoginPassword || '';
+
+                    if (!email || !password) {
+                        this.loginErrorMsg = '請輸入 Email 與密碼！';
+                        return;
+                    }
+
+                    this.loginErrorMsg = '';
+                    this.isLoggingIn = true;
+
+                    try {
+                        // 第一次開啟網站時，如果 Supabase client 尚未建立，先建立。
+                        if (!this.supabaseClient) {
+                            if (!this.supabaseUrl || !this.supabaseKey) {
+                                throw new Error('尚未設定 Supabase Project URL / Anon Key。請先確認瀏覽器已保存 Supabase 設定。');
+                            }
+                            this.initSupabase();
+                            if (!this.supabaseClient) {
+                                throw new Error('Supabase 尚未完成初始化，請重新整理頁面後再試。');
+                            }
+                        }
+
+                        // Supabase 官方 v2 登入方式：Email + Password。
+                        const { data, error } = await this.supabaseClient.auth.signInWithPassword({
+                            email,
+                            password
+                        });
+
+                        if (error) throw error;
+
+                        if (!data?.session || !data?.user) {
+                            throw new Error('登入沒有取得有效的使用者 Session。');
+                        }
+
+                        // onAuthStateChange 會接手讀取 profiles 並決定角色。
+                        await this.handleAuthSession(data.session);
+
+                        if (!this.isSiteAuthenticated) {
+                            throw new Error(this.loginErrorMsg || '登入成功，但無法取得使用者角色。');
+                        }
+
+                        this.siteLoginPassword = '';
+                        this.loginFailedCount = 0;
+                        this.loginErrorMsg = '';
+                    } catch (err) {
+                        console.error('Supabase 登入失敗:', err);
+                        this.loginFailedCount = (this.loginFailedCount || 0) + 1;
+
+                        if (this.loginFailedCount >= 5) {
+                            this.lockoutEndTime = Date.now() + (60 * 1000);
+                            this.loginFailedCount = 0;
+                            this.startLockoutTimer();
+                            this.loginErrorMsg = '';
+                        } else {
+                            const message = err?.message || '登入失敗，請確認 Email、密碼與 Supabase Auth 設定。';
+                            this.loginErrorMsg = message;
+                        }
+                    } finally {
+                        this.isLoggingIn = false;
                     }
                 },
 
