@@ -8,9 +8,9 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF 匯出核心套件 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- Supabase JS SDK 對接雲端儲存 -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Supabase JS SDK 對接雲端儲存與即時連線 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
         body {
@@ -94,7 +94,7 @@
                     </div>
                     <div>
                         <h2 class="text-white font-bold text-sm tracking-wide truncate max-w-[130px]" x-text="currentProjectName"></h2>
-                        <span class="text-[11px] text-blue-400 font-medium">智慧化驗屋系統 v3.2</span>
+                        <span class="text-[11px] font-medium" :class="isRealtimeConnected ? 'text-emerald-400' : 'text-slate-400'" x-text="isRealtimeConnected ? '● 雲端即時連線中' : '○ 本地單機模式'"></span>
                     </div>
                 </div>
 
@@ -222,6 +222,7 @@
                                     </h2>
                                     <p class="text-xs text-slate-500 mt-1">您可在此透過下拉選單或專案列表，快速切換與管理所有已新增的新專案項目內容。</p>
                                 </div>
+                                <!-- 🔒 僅最高權限顯示 -->
                                 <template x-if="hasPermission('createProject')">
                                     <button @click="openCreateProjectModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center space-x-2 shadow-sm">
                                         <i class="fa-solid fa-folder-plus"></i>
@@ -290,6 +291,7 @@
                                             <button @click="switchProjectById(proj.id); activeTab = 'inspection'" class="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition">
                                                 <i class="fa-solid fa-eye mr-1"></i>切換檢視
                                             </button>
+                                            <!-- 🔒 僅最高權限可刪除專案 -->
                                             <template x-if="hasPermission('createProject')">
                                                 <button @click="deleteProject(proj.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold transition" :disabled="projects.length <= 1">
                                                     <i class="fa-solid fa-trash-can"></i>
@@ -499,31 +501,31 @@
                                                                 <span class="font-medium text-blue-600" x-text="item.unit"></span>
                                                             </template>
                                                             <template x-if="col.key === 'defectPhotos'">
-                                                                <button @click.stop="openPhotoModal(item, 'defect')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="(item.defectPhotos && item.defectPhotos.length > 0) ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
-                                                                    <template x-if="item.defectPhotos && item.defectPhotos.length > 0">
+                                                                <button @click.stop="openPhotoModal(item, 'defect')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="item.defectPhotos.length > 0 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
+                                                                    <template x-if="item.defectPhotos.length > 0">
                                                                         <span class="flex items-center space-x-1"><i class="fa-solid fa-camera"></i><span x-text="item.defectPhotos.length"></span></span>
                                                                     </template>
-                                                                    <template x-if="!item.defectPhotos || item.defectPhotos.length === 0">
+                                                                    <template x-if="item.defectPhotos.length === 0">
                                                                         <span>照片</span>
                                                                     </template>
                                                                 </button>
                                                             </template>
                                                             <template x-if="col.key === 'repairPhotos'">
-                                                                <button @click.stop="openPhotoModal(item, 'repair')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="(item.repairPhotos && item.repairPhotos.length > 0) ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
-                                                                    <template x-if="item.repairPhotos && item.repairPhotos.length > 0">
+                                                                <button @click.stop="openPhotoModal(item, 'repair')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="item.repairPhotos.length > 0 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
+                                                                    <template x-if="item.repairPhotos.length > 0">
                                                                         <span class="flex items-center space-x-1"><i class="fa-solid fa-camera"></i><span x-text="item.repairPhotos.length"></span></span>
                                                                     </template>
-                                                                    <template x-if="!item.repairPhotos || item.repairPhotos.length === 0">
+                                                                    <template x-if="item.repairPhotos.length === 0">
                                                                         <span>照片</span>
                                                                     </template>
                                                                 </button>
                                                             </template>
                                                             <template x-if="col.key === 'inspectionPhotos'">
-                                                                <button @click.stop="openPhotoModal(item, 'inspection')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="(item.inspectionPhotos && item.inspectionPhotos.length > 0) ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
-                                                                    <template x-if="item.inspectionPhotos && item.inspectionPhotos.length > 0">
+                                                                <button @click.stop="openPhotoModal(item, 'inspection')" class="inline-flex items-center justify-center px-2 py-1 rounded text-xs font-medium transition" :class="item.inspectionPhotos.length > 0 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'">
+                                                                    <template x-if="item.inspectionPhotos.length > 0">
                                                                         <span class="flex items-center space-x-1"><i class="fa-solid fa-camera"></i><span x-text="item.inspectionPhotos.length"></span></span>
                                                                     </template>
-                                                                    <template x-if="!item.inspectionPhotos || item.inspectionPhotos.length === 0">
+                                                                    <template x-if="item.inspectionPhotos.length === 0">
                                                                         <span>照片</span>
                                                                     </template>
                                                                 </button>
@@ -818,12 +820,12 @@
                             <div class="p-5 bg-blue-50/50 rounded-xl border border-blue-200 space-y-4">
                                 <h4 class="font-bold text-slate-800 flex items-center space-x-2">
                                     <i class="fa-solid fa-cloud-arrow-up text-blue-600"></i>
-                                    <span>Supabase 雲端儲存空間金鑰設定（解決容量限制）</span>
+                                    <span>Supabase 雲端儲存與即時連線金鑰設定</span>
                                 </h4>
-                                <p class="text-xs text-slate-500">請填寫 Supabase 專案的 Anon/Public Key。圖片將直接上傳至雲端儲存，資料庫僅存 URL，避免 localStorage 爆滿。</p>
+                                <p class="text-xs text-slate-500">請填寫 Supabase 專案的 Project URL 與 Anon Key。將自動啟用多人跨裝置即時推播，照片也會直接儲存於雲端 Storage。</p>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block text-xs font-semibold text-slate-700 mb-1">Supabase URL</label>
+                                        <label class="block text-xs font-semibold text-slate-700 mb-1">Supabase Project URL</label>
                                         <input type="text" x-model="supabaseUrl" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="https://xxx.supabase.co">
                                     </div>
                                     <div>
@@ -832,7 +834,7 @@
                                     </div>
                                 </div>
                                 <div class="flex justify-end pt-1">
-                                    <button @click="saveSupabaseConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存 Supabase 設定</button>
+                                    <button @click="saveSupabaseConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存 Supabase 設定並連線</button>
                                 </div>
                             </div>
 
@@ -1257,7 +1259,7 @@
         </div>
     </div>
 
-    <!-- 🔑 Password Modal -->
+    <!-- Password Modal -->
     <div x-show="showPasswordModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <div class="text-center space-y-1">
@@ -1277,7 +1279,7 @@
         </div>
     </div>
 
-    <!-- 🖼️ 圖庫模式彈跳視窗 -->
+    <!-- 圖庫模式彈跳視窗 -->
     <div x-show="showGalleryModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -1380,342 +1382,415 @@
         </div>
     </div>
 
-    <!-- 📷 相片檢視與上傳 Modal -->
+    <!-- Photo Modal -->
     <div x-show="showPhotoModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs" style="display: none;">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]" @click.stop>
+            <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
-                    <h3 class="text-base font-bold text-slate-800" x-text="photoModalTitle()"></h3>
-                    <p class="text-xs text-slate-500 mt-0.5" x-text="activePhotoItem ? (activePhotoItem.unit + ' ' + activePhotoItem.space + ' - ' + activePhotoItem.name) : ''"></p>
+                    <span class="text-[11px] sm:text-xs text-slate-400 font-semibold" x-text="'現場照片 · ' + (currentPhotoItem.unit || 'A3-01')"></span>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800">照片檢視與管理</h2>
                 </div>
-                <button @click="closePhotoModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <div class="flex items-center space-x-2">
+                    <button @click="openOriginalImageView()" class="px-2.5 sm:px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1">
+                        <i class="fa-solid fa-image"></i><span>原圖查看</span>
+                    </button>
+                    <button @click="closePhotoModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             </div>
 
-            <div class="p-6 overflow-y-auto space-y-4">
-                <!-- 照片拖曳與點擊上傳區 -->
-                <template x-if="hasPermission('edit')">
-                    <div class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-6 text-center bg-slate-50 hover:bg-blue-50/30 transition cursor-pointer relative">
-                        <input type="file" accept="image/*" multiple @change="handlePhotoUpload($event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <i class="fa-solid fa-cloud-arrow-up text-3xl text-blue-500 mb-2"></i>
-                        <p class="text-xs font-bold text-slate-700">點擊或拖曳照片至此上傳</p>
-                        <p class="text-[11px] text-slate-400 mt-1">支援 JPG, PNG 格式 (若有設定 Supabase 將直接上傳至雲端儲存區)</p>
-                    </div>
-                </template>
+            <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+                <div class="lg:col-span-8 bg-slate-900 p-3 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[250px] sm:min-h-[400px]">
 
-                <!-- 照片預覽縮圖網格 -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <template x-for="(photo, pIdx) in activePhotoList()" :key="pIdx">
-                        <div class="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square bg-slate-100">
-                            <img :src="photo" class="w-full h-full object-cover">
-                            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center space-x-2">
-                                <a :href="photo" target="_blank" class="w-8 h-8 rounded-full bg-white text-slate-800 flex items-center justify-center hover:bg-blue-600 hover:text-white transition text-xs" title="看大圖">
-                                    <i class="fa-solid fa-expand"></i>
-                                </a>
-                                <template x-if="hasPermission('edit')">
-                                    <button @click="deletePhoto(pIdx)" class="w-8 h-8 rounded-full bg-white text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition text-xs" title="刪除照片">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
-                                </template>
+                    <div class="relative w-full h-full flex flex-col items-center justify-center select-none border-2 border-dashed border-slate-700 rounded-xl p-2"
+                         @dragover.prevent @drop.prevent="handleFileDrop($event)">
+                        
+                        <template x-if="currentPhotoList().length > 0">
+                            <div class="flex flex-col items-center w-full h-full justify-center space-y-2">
+                                <div class="relative inline-block max-w-full max-h-[35vh] sm:max-h-[50vh]">
+                                    <img :src="currentPhotoList()[activePhotoIndex]" id="previewImageElement" class="block max-h-[35vh] sm:max-h-[50vh] max-w-full rounded shadow-lg object-contain mx-auto" alt="照片檢視">
+                                </div>
+
+                                <div class="flex items-center space-x-2 overflow-x-auto max-w-full py-1">
+                                    <template x-for="(pUrl, pIdx) in currentPhotoList()" :key="pIdx">
+                                        <div @click="activePhotoIndex = pIdx" class="w-12 h-12 rounded-lg overflow-hidden border-2 cursor-pointer shrink-0 transition" :class="activePhotoIndex === pIdx ? 'border-blue-500 scale-105 shadow-md' : 'border-slate-700 opacity-60'">
+                                            <img :src="pUrl" class="w-full h-full object-cover">
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
-                        </div>
-                    </template>
-                </div>
-                <template x-if="activePhotoList().length === 0">
-                    <p class="text-center text-xs text-slate-400 py-6 italic">目前尚無上傳此類型照片</p>
-                </template>
-            </div>
+                        </template>
 
-            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button @click="closePhotoModal()" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold">關閉窗口</button>
+                        <template x-if="currentPhotoList().length === 0">
+                            <div class="flex flex-col items-center justify-center text-slate-400 p-4 sm:p-8 text-center pointer-events-none">
+                                <i class="fa-solid fa-cloud-arrow-up text-4xl sm:text-5xl mb-2 text-slate-500"></i>
+                                <span class="text-xs sm:text-base font-bold text-slate-300">拖曳照片至此處新增，或使用右側按鈕上傳</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-4 p-4 sm:p-6 flex flex-col justify-between bg-white overflow-y-auto space-y-4">
+                    <div class="space-y-4">
+                        <div>
+                            <span class="text-xs text-slate-400 font-medium">缺失項目資訊</span>
+                            <h3 class="text-base font-bold text-slate-800 mt-0.5" x-text="currentPhotoItem.name"></h3>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="(currentPhotoItem.space || '') + ' ／ ' + (currentPhotoItem.category || '')"></p>
+                        </div>
+                        <hr class="border-slate-100">
+                        <template x-if="hasPermission('edit')">
+                            <div class="space-y-2">
+                                <label class="block text-xs font-semibold text-slate-700">即時拍照 / 上傳檔案 / 拖曳新增</label>
+                                
+                                <label class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span>使用相機即時拍照</span>
+                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadPhotosFromInput($event)">
+                                </label>
+
+                                <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
+                                    <i class="fa-solid fa-upload"></i>
+                                    <span>選擇照片檔案上傳</span>
+                                    <input type="file" accept="image/*" multiple class="hidden" @change="uploadPhotosFromInput($event)">
+                                </label>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="space-y-2 pt-4 border-t border-slate-100">
+                        <template x-if="hasPermission('delete') && currentPhotoList().length > 0">
+                            <button @click="deleteActivePhoto()" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                                <span>刪除當前照片</span>
+                            </button>
+                        </template>
+                        <button @click="closePhotoModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-sm transition">完成並關閉</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 📝 新增/編輯 缺失項目 Modal -->
-    <div x-show="showItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col p-6 space-y-4 max-h-[90vh]" @click.stop>
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-800" x-text="isEditingItem ? '編輯缺失項目內容' : '新增驗屋缺失項目'"></h3>
-                <button @click="showItemModalFlag = false" class="text-slate-400 hover:text-slate-600">
+    <!-- 新增驗屋缺失項目浮動視窗 -->
+    <div x-show="showNewItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-plus text-blue-600"></i>
+                    <span>新增驗屋缺失項目</span>
+                </h2>
+                <button @click="showNewItemModalFlag = false" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-
-            <div class="space-y-3 text-xs overflow-y-auto pr-1">
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">項目編號</label>
-                        <input type="text" x-model="itemForm.code" class="w-full px-3 py-2 border rounded-lg bg-slate-50" placeholder="如: A-01">
+            
+            <div class="flex-1 overflow-y-auto p-6 space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">項目名稱 <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="newItemForm.name" placeholder="例如：牆面漆面不平整..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">戶別</label>
-                        <input type="text" x-model="itemForm.unit" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="如: A1-10F">
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">空間位置</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.space" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('space')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">工種/類別</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.category" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('category')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">驗收方法</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.method" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('method')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">戶別</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.unit" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('unit')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">預計修繕截止日期</label>
+                        <input type="date" x-model="newItemForm.dueDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                    </div>
+
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block text-sm font-semibold text-slate-700">備註說明</label>
+                        <textarea x-model="newItemForm.remark" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="輸入其他備註事項..."></textarea>
+                    </div>
+
+                    <div class="md:col-span-2 space-y-2 pt-2 border-t border-slate-100">
+                        <label class="block text-sm font-semibold text-slate-700">上傳缺失照片</label>
+                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 transition hover:bg-slate-100"
+                             @dragover.prevent @drop.prevent="handleNewItemDrop($event)">
+                             
+                            <div class="flex space-x-3 mb-3">
+                                <label class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-camera"></i><span>即時拍照</span>
+                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadNewItemPhotos($event)">
+                                </label>
+                                <label class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-upload"></i><span>選擇照片</span>
+                                    <input type="file" accept="image/*" multiple class="hidden" @change="uploadNewItemPhotos($event)">
+                                </label>
+                            </div>
+                            <p class="text-xs text-slate-400">或將照片拖曳至此處新增</p>
+                        </div>
+                        
+                        <template x-if="newItemForm.defectPhotos.length > 0">
+                            <div class="flex flex-wrap gap-3 mt-3">
+                                <template x-for="(pUrl, pIdx) in newItemForm.defectPhotos" :key="pIdx">
+                                    <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shadow-sm group">
+                                        <img :src="pUrl" class="w-full h-full object-cover">
+                                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer" @click="removeNewItemPhoto(pIdx)">
+                                            <i class="fa-solid fa-trash text-white text-xs"></i>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
                     </div>
                 </div>
+            </div>
 
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">缺失名稱</label>
-                    <input type="text" x-model="itemForm.name" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="請輸入缺失說明...">
-                </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button @click="showNewItemModalFlag = false" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
+                <button @click="saveNewItem()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存並建立</button>
+            </div>
+        </div>
+    </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">檢驗空間</label>
-                        <input type="text" x-model="itemForm.space" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="如: 客廳、主臥">
+    <!-- 編輯項目 Modal -->
+    <div x-show="showEditItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-pen-to-square text-blue-600"></i>
+                    <span>編輯驗屋缺失項目內容</span>
+                </h2>
+                <button @click="showEditItemModalFlag = false" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block font-semibold text-slate-700">項目名稱 <span class="text-red-500">*</span></label>
+                        <input type="text" x-model="editItemForm.name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">工種/類別</label>
-                        <input type="text" x-model="itemForm.category" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="如: 油漆、泥作">
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">空間位置</label>
+                        <select x-model="editItemForm.space" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
+                        </select>
                     </div>
-                </div>
 
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">驗收方法/標準</label>
-                    <input type="text" x-model="itemForm.method" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="如: 目視檢查、敲擊試驗">
-                </div>
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">工種/類別</label>
+                        <select x-model="editItemForm.category" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
+                        </select>
+                    </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">修繕狀態</label>
-                        <select x-model="itemForm.repairStatus" class="w-full px-3 py-2 border rounded-lg bg-white">
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">驗收方法</label>
+                        <select x-model="editItemForm.method" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">戶別</label>
+                        <select x-model="editItemForm.unit" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                            <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">修繕狀態</label>
+                        <select x-model="editItemForm.repairStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <option value="待修繕">待修繕</option>
                             <option value="修繕中">修繕中</option>
                             <option value="已完成">已完成</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">工檢狀態</label>
-                        <select x-model="itemForm.inspectionStatus" class="w-full px-3 py-2 border rounded-lg bg-white">
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">工檢狀態</label>
+                        <select x-model="editItemForm.inspectionStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <option value="待複查">待複查</option>
                             <option value="合格">合格</option>
                         </select>
                     </div>
-                </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">預計完成日</label>
-                        <input type="date" x-model="itemForm.dueDate" class="w-full px-3 py-2 border rounded-lg bg-white">
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">預計修繕截止日期</label>
+                        <input type="date" x-model="editItemForm.dueDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-700 mb-1">實際完成日</label>
-                        <input type="date" x-model="itemForm.completeDate" class="w-full px-3 py-2 border rounded-lg bg-white">
+
+                    <div class="space-y-1.5">
+                        <label class="block font-semibold text-slate-700">完成日期</label>
+                        <input type="date" x-model="editItemForm.completeDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
                     </div>
-                </div>
 
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">驗屋人員/負責人</label>
-                    <input type="text" x-model="itemForm.inspector" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="人員姓名...">
-                </div>
-
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">詳細備註</label>
-                    <textarea x-model="itemForm.remark" rows="2" class="w-full px-3 py-2 border rounded-lg bg-white" placeholder="請輸入備註..."></textarea>
+                    <div class="md:col-span-2 space-y-1.5">
+                        <label class="block font-semibold text-slate-700">備註說明</label>
+                        <textarea x-model="editItemForm.remark" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+                    </div>
                 </div>
             </div>
 
-            <div class="flex space-x-3 pt-2 border-t border-slate-100">
-                <button @click="showItemModalFlag = false" class="flex-1 py-2 border rounded-xl text-slate-600 hover:bg-slate-50 font-medium">取消</button>
-                <button @click="saveItem()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm">儲存資料</button>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button @click="showEditItemModalFlag = false" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
+                <button @click="saveEditItem()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存變更</button>
             </div>
         </div>
     </div>
 
-    <!-- 📁 新增/編輯 專案 Modal -->
-    <div x-show="showProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <!-- 編輯選項選單 Modal -->
+    <div x-show="showOptionEditModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-800" x-text="isEditingProject ? '變更專案名稱' : '建立全新專案'"></h3>
-                <button @click="showProjectModalFlag = false" class="text-slate-400 hover:text-slate-600">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <h3 class="text-base font-bold text-slate-800" x-text="'編輯 ' + optionEditTitle + ' 選項'"></h3>
+                <button @click="showOptionEditModalFlag = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
-
-            <div class="space-y-3 text-xs">
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">專案名稱</label>
-                    <input type="text" x-model="projectForm.name" class="w-full px-3 py-2 border rounded-xl text-sm bg-white" placeholder="例如：國泰央北建案 A棟">
-                </div>
+            <div class="space-y-3 max-h-60 overflow-y-auto">
+                <template x-for="(opt, idx) in tempOptionList" :key="idx">
+                    <div class="flex items-center space-x-2">
+                        <input type="text" x-model="tempOptionList[idx]" class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                        <button @click="removeOptionItem(idx)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                </template>
             </div>
-
-            <div class="flex space-x-3 pt-2 border-t border-slate-100">
-                <button @click="showProjectModalFlag = false" class="flex-1 py-2 border rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-xs">取消</button>
-                <button @click="saveProject()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-xs shadow-sm">確認儲存</button>
+            <button @click="addOptionItem()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
+                <i class="fa-solid fa-plus"></i><span>新增一項</span>
+            </button>
+            <div class="flex space-x-3 pt-2">
+                <button @click="showOptionEditModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-700">取消</button>
+                <button @click="saveOptionEdit()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold">儲存選項</button>
             </div>
         </div>
     </div>
 
-    <!-- Alpine.js 應用程式核心邏輯與資料狀態 -->
+    <!-- 編輯專案名稱 Modal -->
+    <div x-show="showEditProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
+            <h3 class="text-base font-bold text-slate-800">變更當前專案名稱</h3>
+            <input type="text" x-model="tempProjectNameInput" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500">
+            <div class="flex space-x-3 pt-2">
+                <button @click="showEditProjectModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs text-slate-700 font-medium">取消</button>
+                <button @click="saveProjectName()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold">儲存名稱</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 建立新專案 Modal -->
+    <div x-show="showCreateProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
+            <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                <i class="fa-solid fa-folder-plus text-emerald-600"></i>
+                <span>建立全新專案</span>
+            </h3>
+            <input type="text" x-model="newProjectNameInput" placeholder="輸入專案名稱..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500">
+            <div class="flex space-x-3 pt-2">
+                <button @click="showCreateProjectModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs text-slate-700 font-medium">取消</button>
+                <button @click="createNewProject()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold">建立專案</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alpine.js 核心邏輯 -->
     <script>
         function inspectionApp() {
             return {
-                // --- 1. 身分核實與安全防護 ---
-                isSiteAuthenticated: false,
-                siteLoginAccount: '',
-                siteLoginPassword: '',
-                lockoutRemainingSeconds: 0,
-                lockoutTimer: null,
-                loginErrorMsg: '',
-                failedAttempts: 0,
-
-                // 角色切換與驗證
-                currentRole: 'Owner',
-                showPasswordModalFlag: false,
-                passwordPromptTitle: '',
-                enteredPassword: '',
-                passwordVerifyCallback: null,
-
-                // 系統預設與自訂帳戶名單
-                tempAdminAccount: '',
-                tempAdminPassword: '',
-                adminAccount: 'Admin8866',
-                adminPassword: 'Admin86392672@',
-                ownerPassword: '86392672',
-
-                customInspectors: [{ id: 1, name: '張小明', title: '進階驗屋師', password: '123' }],
-                customVendors: [{ id: 1, name: '宏遠營造', title: '泥作/水電工班', password: '123' }],
-                customAdmins: [{ id: 1, name: '李組長', title: '工務主管', password: '123' }],
-                systemUsers: [],
-                newSystemUser: { username: '', password: '', name: '', role: 'Inspector' },
-
-                // Supabase 雲端設定
-                supabaseUrl: '',
-                supabaseKey: '',
-                supabaseClient: null,
-
-                // --- 2. 介面導覽 ---
                 mobileSidebarOpen: false,
                 activeTab: 'inspection',
                 viewMode: 'table',
+                currentRole: 'Owner',
+                
+                // Supabase 雲端對接與 Realtime 廣播狀態
+                supabaseUrl: localStorage.getItem('hongyuan_supabase_url') || 'https://cpgdfijbebqfvvbnjsqz.supabase.co',
+                supabaseKey: localStorage.getItem('hongyuan_supabase_key') || '',
+                supabaseClient: null,
+                realtimeChannel: null,
+                isRealtimeConnected: false,
 
-                // --- 3. 專案與項目資料 ---
-                selectedProjectId: 'proj-1',
-                projects: [
-                    {
-                        id: 'proj-1',
-                        name: '國泰央北建案 B1 區',
-                        items: [
-                            {
-                                id: 'item-101',
-                                code: 'A-01',
-                                name: '地磚空鼓且邊角微裂',
-                                space: '客廳',
-                                category: '泥作工程',
-                                unit: 'A1-10F',
-                                method: '敲擊棒檢測',
-                                repairStatus: '待修繕',
-                                inspectionStatus: '待複查',
-                                dueDate: '2026-10-15',
-                                completeDate: '',
-                                inspector: '張小明',
-                                remark: '角落處敲擊聲音沉悶有空心感',
-                                defectPhotos: [],
-                                repairPhotos: [],
-                                inspectionPhotos: []
-                            },
-                            {
-                                id: 'item-102',
-                                code: 'A-02',
-                                name: '牆面漆面剝落不平整',
-                                space: '主臥',
-                                category: '油漆工程',
-                                unit: 'A1-10F',
-                                method: '目視與強光燈巡檢',
-                                repairStatus: '修繕中',
-                                inspectionStatus: '待複查',
-                                dueDate: '2026-10-12',
-                                completeDate: '',
-                                inspector: '張小明',
-                                remark: '窗台下方漆面局部起泡',
-                                defectPhotos: [],
-                                repairPhotos: [],
-                                inspectionPhotos: []
-                            },
-                            {
-                                id: 'item-103',
-                                code: 'B-01',
-                                name: '水龍頭出水口漏水',
-                                space: '浴室',
-                                category: '水電工程',
-                                unit: 'B2-05F',
-                                method: '加壓與試水測試',
-                                repairStatus: '已完成',
-                                inspectionStatus: '合格',
-                                dueDate: '2026-10-05',
-                                completeDate: '2026-10-03',
-                                inspector: '張小明',
-                                remark: '止水墊片已更換完成',
-                                defectPhotos: [],
-                                repairPhotos: [],
-                                inspectionPhotos: []
-                            }
-                        ]
-                    }
-                ],
-
-                // --- 4. 篩選與分頁 ---
-                searchQuery: '',
-                selectedSpaceFilter: '',
-                selectedCategoryFilter: '',
-                selectedUnitFilter: '',
-                filterStatus: '',
-                filterInspectionStatus: '',
+                // 分頁控制狀態
                 currentPage: 1,
                 pageSize: 10,
 
-                // --- 5. 表格欄位拖曳 ---
-                tableColumns: [
-                    { key: 'code', label: '編號', width: '70px', align: 'center' },
-                    { key: 'unit', label: '戶別', width: '80px', align: 'center' },
-                    { key: 'space', label: '空間', width: '90px' },
-                    { key: 'name', label: '缺失項目與標準', width: '200px' },
-                    { key: 'category', label: '工種類別', width: '100px' },
-                    { key: 'defectPhotos', label: '缺失照片', width: '90px', align: 'center' },
-                    { key: 'repairPhotos', label: '修繕照片', width: '90px', align: 'center' },
-                    { key: 'inspectionPhotos', label: '工檢照片', width: '90px', align: 'center' },
-                    { key: 'repairStatus', label: '修繕狀態', width: '110px', align: 'center' },
-                    { key: 'inspectionStatus', label: '工檢狀態', width: '110px', align: 'center' },
-                    { key: 'dueDate', label: '預計完成', width: '100px', align: 'center' },
-                    { key: 'completeDate', label: '實際完成', width: '100px', align: 'center' },
-                    { key: 'inspector', label: '檢驗員', width: '90px' },
-                    { key: 'remark', label: '備註', width: '150px' },
-                    { key: 'action', label: '操作', width: '90px', align: 'center' }
+                // 🔒 網站登入核實狀態
+                isSiteAuthenticated: false,
+                siteLoginAccount: '',
+                siteLoginPassword: '',
+                loginErrorMsg: '',
+                siteAdminAccount: 'Admin8866',
+                siteAdminPassword: 'Admin86392672@',
+                tempAdminAccount: '',
+                tempAdminPassword: '',
+
+                // 👥 多用戶管理
+                systemUsers: [],
+                newSystemUser: { username: '', password: '', name: '', role: 'Inspector' },
+
+                // 🔒 錯誤鎖定機制
+                loginFailedCount: 0,
+                lockoutEndTime: 0,
+                lockoutRemainingSeconds: 0,
+                lockoutTimerInterval: null,
+
+                // 密碼驗證視窗
+                showPasswordModalFlag: false,
+                targetPendingRole: '',
+                passwordPromptTitle: '',
+                enteredPassword: '',
+                ownerPassword: '86392672',
+
+                // 自訂角色
+                customInspectors: [{ id: 1, name: '驗屋專員', title: '資深檢測員', password: '' }],
+                customVendors: [{ id: 1, name: '營造工程', title: '總包廠商', password: '' }],
+                customAdmins: [{ id: 1, name: '工務主管', title: '現場負責人', password: '' }],
+                tempOwnerPassword: '',
+
+                // 專案資料
+                projects: [
+                    { id: 'p1', name: '國泰央北建案 B1 區', items: [] }
                 ],
-                draggedColIndex: null,
+                selectedProjectId: 'p1',
+                currentProjectName: '國泰央北建案 B1 區',
 
-                // --- 6. 批量操作 ---
-                batchMode: false,
-                selectedItemIds: [],
-                batchTargetSpace: '',
-                batchTargetStatus: '',
-                rowPressTimer: null,
+                // 驗屋缺失清單
+                items: [
+                    { id: '1', code: 'A301-01', name: '玄關門框刮傷漆面欠佳', space: '玄關', category: '油漆工種', method: '目視檢驗', unit: 'A3-01', repairStatus: '待修繕', inspectionStatus: '待複查', dueDate: '2026-10-15', completeDate: '', inspector: '驗屋專員', remark: '靠近門把下方處有約 3cm 劃痕', defectPhotos: [], repairPhotos: [], inspectionPhotos: [] },
+                    { id: '2', code: 'A301-02', name: '客廳地磚空鼓現象', space: '客廳', category: '泥作工種', method: '敲擊聽音', unit: 'A3-01', repairStatus: '修繕中', inspectionStatus: '待複查', dueDate: '2026-10-20', completeDate: '', inspector: '驗屋專員', remark: '中央第三塊地磚角落敲擊聲異常', defectPhotos: [], repairPhotos: [], inspectionPhotos: [] }
+                ],
 
-                // --- 7. 圖庫與相片 Modal ---
-                showGalleryModalFlag: false,
-                galleryPhotoType: 'defect',
-                galleryColumnsVisible: {
-                    nameMethod: true,
-                    space: true,
-                    unit: true,
-                    repairStatus: true,
-                    inspectionStatus: true
-                },
-                showPhotoModalFlag: false,
-                activePhotoItem: null,
-                activePhotoType: 'defect',
-
-                // --- 8. 項目與專案彈窗 Modal ---
-                showItemModalFlag: false,
-                isEditingItem: false,
-                itemForm: { id: '', code: '', name: '', space: '', category: '', unit: '', method: '', repairStatus: '待修繕', inspectionStatus: '待複查', dueDate: '', completeDate: '', inspector: '', remark: '', defectPhotos: [], repairPhotos: [], inspectionPhotos: [] },
-
-                showProjectModalFlag: false,
-                isEditingProject: false,
-                projectForm: { id: '', name: '' },
-
-                // --- 9. PDF 匯出模組 ---
+                // PDF Form
                 showPdfExportModalFlag: false,
                 pdfForm: {
                     title: '',
@@ -1727,44 +1802,461 @@
                     scale: 100
                 },
 
-                // --- 10. 數據分析統計 Modal ---
-                analyticsChartType: 'pie',
-                analyticsProjectId: 'proj-1',
+                // 篩選器
+                searchQuery: '',
+                selectedSpaceFilter: '',
+                selectedCategoryFilter: '',
+                selectedUnitFilter: '',
+                filterStatus: '',
+                filterInspectionStatus: '',
+
+                // 批次操作
+                batchMode: false,
+                selectedItemIds: [],
+                batchTargetSpace: '',
+                batchTargetStatus: '',
+                pressTimer: null,
+
+                // 表格欄位拖曳
+                tableColumns: [
+                    { key: 'code', label: '編號', width: '90px' },
+                    { key: 'name', label: '缺失名稱 / 驗收方法', width: '200px' },
+                    { key: 'space', label: '空間', width: '100px' },
+                    { key: 'category', label: '類別/工種', width: '120px' },
+                    { key: 'unit', label: '戶別', width: '90px' },
+                    { key: 'defectPhotos', label: '缺失照片', width: '90px', align: 'center' },
+                    { key: 'repairPhotos', label: '修繕照片', width: '90px', align: 'center' },
+                    { key: 'inspectionPhotos', label: '工檢照片', width: '90px', align: 'center' },
+                    { key: 'repairStatus', label: '修繕狀態', width: '110px' },
+                    { key: 'inspectionStatus', label: '工檢狀態', width: '100px' },
+                    { key: 'dueDate', label: '預計完成', width: '110px' },
+                    { key: 'completeDate', label: '實際完成', width: '110px' },
+                    { key: 'inspector', label: '檢驗員', width: '100px' },
+                    { key: 'remark', label: '備註說明', width: '150px' },
+                    { key: 'action', label: '操作', width: '90px', align: 'center' }
+                ],
+                draggedColIndex: null,
+
+                // 選項選單
+                spaceList: ['玄關', '客廳', '主臥', '次臥', '廚房', '陽台', '主衛浴', '客衛浴'],
+                categoryList: ['油漆工種', '泥作工種', '水電工種', '木作工種', '鋁窗工種', '門扇工種'],
+                methodList: ['目視檢驗', '敲擊聽音', '儀器量測', '通水測試', '通電測試'],
+                unitList: ['A3-01', 'A3-02', 'B1-05', 'B1-06'],
+
+                // 圖庫 Modal
+                showGalleryModalFlag: false,
+                galleryPhotoType: 'defect',
+                galleryColumnsVisible: { nameMethod: true, space: true, unit: true, repairStatus: true, inspectionStatus: true },
+
+                // 相片 Modal
+                showPhotoModalFlag: false,
+                currentPhotoItem: {},
+                currentPhotoType: 'defect',
+                activePhotoIndex: 0,
+
+                // 各式 Modal 狀態
+                showNewItemModalFlag: false,
+                newItemForm: { name: '', space: '玄關', category: '油漆工種', method: '目視檢驗', unit: 'A3-01', dueDate: '', remark: '', defectPhotos: [] },
+
+                showEditItemModalFlag: false,
+                editItemForm: {},
+
+                showOptionEditModalFlag: false,
+                optionEditTargetKey: '',
+                optionEditTitle: '',
+                tempOptionList: [],
+
+                showEditProjectModalFlag: false,
+                tempProjectNameInput: '',
+
+                showCreateProjectModalFlag: false,
+                newProjectNameInput: '',
+
+                // 圖表統計
+                analyticsProjectId: 'p1',
                 analyticsSpace: '',
                 analyticsUnit: '',
                 analyticsCategory: '',
+                analyticsChartType: 'pie',
 
-                // --- 計算屬性 (Getters) ---
-                get currentProject() {
-                    return this.projects.find(p => p.id === this.selectedProjectId) || this.projects[0] || { id: '', name: '未命名專案', items: [] };
+                init() {
+                    const savedUrl = localStorage.getItem('hongyuan_supabase_url');
+                    const savedKey = localStorage.getItem('hongyuan_supabase_key');
+                    if (savedUrl) this.supabaseUrl = savedUrl;
+                    if (savedKey) this.supabaseKey = savedKey;
+
+                    const savedAdminAcc = localStorage.getItem('hongyuan_admin_account');
+                    const savedAdminPwd = localStorage.getItem('hongyuan_admin_password');
+                    if (savedAdminAcc) this.siteAdminAccount = savedAdminAcc;
+                    if (savedAdminPwd) this.siteAdminPassword = savedAdminPwd;
+                    this.tempAdminAccount = this.siteAdminAccount;
+                    this.tempAdminPassword = this.siteAdminPassword;
+
+                    const savedUsers = localStorage.getItem('hongyuan_system_users');
+                    if (savedUsers) {
+                        try { this.systemUsers = JSON.parse(savedUsers); } catch(e){}
+                    }
+
+                    this.checkLockoutStatus();
+
+                    // 讀取本地暫存做為基礎備援
+                    const savedProjects = localStorage.getItem('hongyuan_projects');
+                    if (savedProjects) {
+                        try {
+                            this.projects = JSON.parse(savedProjects);
+                            if (this.projects.length > 0) {
+                                this.selectedProjectId = this.projects[0].id;
+                                this.currentProjectName = this.projects[0].name;
+                                this.items = this.projects[0].items || [];
+                            }
+                        } catch(e) {}
+                    } else {
+                        this.projects[0].items = [...this.items];
+                        this.saveProjectsToStorage();
+                    }
+
+                    // 初始化 Supabase 雲端並訂閱 Realtime 廣播
+                    this.initSupabase();
                 },
-                get currentProjectName() {
-                    return this.currentProject.name;
+
+                // 初始化與儲存 Supabase 連線及廣播頻道
+                initSupabase() {
+                    if (!this.supabaseUrl || !this.supabaseKey) {
+                        this.isRealtimeConnected = false;
+                        return;
+                    }
+
+                    if (!window.supabase) {
+                        setTimeout(() => this.initSupabase(), 300);
+                        return;
+                    }
+
+                    try {
+                        this.supabaseClient = window.supabase.createClient(this.supabaseUrl.trim(), this.supabaseKey.trim());
+                        
+                        // 載入雲端最新專案與缺失資料
+                        this.fetchDataFromSupabase();
+
+                        // 重設並開啟 Supabase Realtime 即時推播監聽
+                        if (this.realtimeChannel) {
+                            this.supabaseClient.removeChannel(this.realtimeChannel);
+                        }
+
+                        this.realtimeChannel = this.supabaseClient
+                            .channel('public-projects-realtime')
+                            .on(
+                                'postgres_changes',
+                                { event: '*', schema: 'public', table: 'projects' },
+                                (payload) => {
+                                    this.handleRealtimePayload(payload);
+                                }
+                            )
+                            .subscribe((status) => {
+                                if (status === 'SUBSCRIBED') {
+                                    this.isRealtimeConnected = true;
+                                    console.log('Supabase Realtime 連線成功！');
+                                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                    this.isRealtimeConnected = false;
+                                }
+                            });
+                    } catch (err) {
+                        console.error('Supabase 連線失敗:', err);
+                        this.isRealtimeConnected = false;
+                    }
                 },
-                get items() {
-                    return this.currentProject.items || [];
+
+                saveSupabaseConfig() {
+                    localStorage.setItem('hongyuan_supabase_url', this.supabaseUrl.trim());
+                    localStorage.setItem('hongyuan_supabase_key', this.supabaseKey.trim());
+                    this.initSupabase();
+                    alert('Supabase 金鑰已儲存並成功對接雲端！');
                 },
-                get spaceOptions() {
-                    return Array.from(new Set(this.items.map(i => i.space).filter(Boolean)));
+
+                // 從 Supabase 抓取所有專案資料
+                async fetchDataFromSupabase() {
+                    if (!this.supabaseClient) return;
+                    try {
+                        const { data, error } = await this.supabaseClient
+                            .from('projects')
+                            .select('*');
+
+                        if (!error && data && data.length > 0) {
+                            this.projects = data.map(p => ({
+                                id: p.id,
+                                name: p.name,
+                                items: p.items || []
+                            }));
+
+                            const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
+                            if (currentExist) {
+                                this.currentProjectName = currentExist.name;
+                                this.items = currentExist.items || [];
+                            } else if (this.projects.length > 0) {
+                                this.selectedProjectId = this.projects[0].id;
+                                this.currentProjectName = this.projects[0].name;
+                                this.items = this.projects[0].items || [];
+                            }
+                            this.isRealtimeConnected = true;
+                            localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                        } else if (data && data.length === 0) {
+                            // 雲端資料庫若為空，自動同步本地初選專案上去
+                            this.saveToSupabase();
+                        }
+                    } catch (err) {
+                        console.error('從 Supabase 讀取資料失敗:', err);
+                    }
                 },
-                get categoryOptions() {
-                    return Array.from(new Set(this.items.map(i => i.category).filter(Boolean)));
+
+                // 儲存/同步所有專案及缺失資料至 Supabase
+                async saveToSupabase() {
+                    if (!this.supabaseClient) return;
+                    try {
+                        for (let p of this.projects) {
+                            await this.supabaseClient.from('projects').upsert({
+                                id: p.id,
+                                name: p.name,
+                                items: JSON.parse(JSON.stringify(p.items || [])),
+                                updated_at: new Date().toISOString()
+                            });
+                        }
+                    } catch (err) {
+                        console.error('同步至 Supabase 雲端失敗:', err);
+                    }
                 },
-                get unitOptions() {
-                    return Array.from(new Set(this.items.map(i => i.unit).filter(Boolean)));
+
+                // 處理其他人更新傳來的 Realtime 即時推播
+                handleRealtimePayload(payload) {
+                    if (!payload) return;
+                    if (payload.eventType === 'DELETE' && payload.old) {
+                        this.projects = this.projects.filter(p => p.id !== payload.old.id);
+                        if (this.selectedProjectId === payload.old.id && this.projects.length > 0) {
+                            this.selectedProjectId = this.projects[0].id;
+                            this.currentProjectName = this.projects[0].name;
+                            this.items = this.projects[0].items || [];
+                        }
+                    } else if (payload.new) {
+                        const remoteProj = payload.new;
+                        const pIdx = this.projects.findIndex(p => p.id === remoteProj.id);
+                        if (pIdx !== -1) {
+                            this.projects[pIdx].name = remoteProj.name || this.projects[pIdx].name;
+                            this.projects[pIdx].items = remoteProj.items || [];
+                        } else {
+                            this.projects.push({
+                                id: remoteProj.id,
+                                name: remoteProj.name,
+                                items: remoteProj.items || []
+                            });
+                        }
+
+                        if (this.selectedProjectId === remoteProj.id) {
+                            this.currentProjectName = remoteProj.name;
+                            this.items = remoteProj.items || [];
+                        }
+                    }
+                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
                 },
-                get filteredItems() {
-                    return this.items.filter(item => {
-                        const matchSpace = !this.selectedSpaceFilter || item.space === this.selectedSpaceFilter;
-                        const matchCategory = !this.selectedCategoryFilter || item.category === this.selectedCategoryFilter;
-                        const matchUnit = !this.selectedUnitFilter || item.unit === this.selectedUnitFilter;
-                        const matchStatus = !this.filterStatus || item.repairStatus === this.filterStatus;
-                        const matchInspStatus = !this.filterInspectionStatus || item.inspectionStatus === this.filterInspectionStatus;
-                        const query = this.searchQuery.trim().toLowerCase();
-                        const matchQuery = !query || (item.name && item.name.toLowerCase().includes(query)) || (item.remark && item.remark.toLowerCase().includes(query)) || (item.code && item.code.toLowerCase().includes(query));
-                        return matchSpace && matchCategory && matchUnit && matchStatus && matchInspStatus && matchQuery;
+
+                // 上傳照片至 Supabase Storage (`inspection-photos` bucket)
+                async uploadImageToCloud(file) {
+                    if (this.supabaseClient) {
+                        try {
+                            const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
+                            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+                            const filePath = `defects/${fileName}`;
+
+                            const { data, error } = await this.supabaseClient.storage
+                                .from('inspection-photos')
+                                .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+                            if (!error && data) {
+                                const { data: publicUrlData } = this.supabaseClient.storage
+                                    .from('inspection-photos')
+                                    .getPublicUrl(filePath);
+
+                                if (publicUrlData && publicUrlData.publicUrl) {
+                                    return publicUrlData.publicUrl;
+                                }
+                            } else if (error) {
+                                console.warn('Supabase Storage 上傳失敗，降級本地 DataURL:', error.message);
+                            }
+                        } catch (err) {
+                            console.warn('Supabase Storage 例外狀況:', err);
+                        }
+                    }
+                    // 無 Supabase 時降級採用 DataURL 處理
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => resolve(evt.target.result);
+                        reader.readAsDataURL(file);
                     });
                 },
+
+                handleSiteLogin() {
+                    if (this.lockoutRemainingSeconds > 0) return;
+
+                    const inputAcc = this.siteLoginAccount.trim();
+                    const inputPwd = this.siteLoginPassword.trim();
+
+                    if (!inputAcc || !inputPwd) {
+                        this.loginErrorMsg = '請輸入帳號與密碼！';
+                        return;
+                    }
+
+                    if (inputAcc === this.siteAdminAccount && inputPwd === this.siteAdminPassword) {
+                        this.loginSuccess('Owner');
+                        return;
+                    }
+
+                    const foundUser = this.systemUsers.find(u => u.username === inputAcc && u.password === inputPwd);
+                    if (foundUser) {
+                        this.loginSuccess(foundUser.role || 'Inspector');
+                        return;
+                    }
+
+                    this.loginFailedCount++;
+                    localStorage.setItem('hongyuan_login_failed_count', this.loginFailedCount);
+
+                    if (this.loginFailedCount >= 5) {
+                        this.lockoutEndTime = Date.now() + (3 * 60 * 1000);
+                        localStorage.setItem('hongyuan_lockout_endtime', this.lockoutEndTime);
+                        this.startLockoutCountdown();
+                        this.loginErrorMsg = '';
+                    } else {
+                        const remain = 5 - this.loginFailedCount;
+                        this.loginErrorMsg = `帳號或密碼錯誤！剩餘可嘗試次數：${remain} 次`;
+                    }
+                },
+
+                loginSuccess(role) {
+                    this.isSiteAuthenticated = true;
+                    this.currentRole = role;
+                    this.loginFailedCount = 0;
+                    this.siteLoginPassword = '';
+                    this.loginErrorMsg = '';
+                    localStorage.setItem('hongyuan_login_failed_count', 0);
+                    localStorage.removeItem('hongyuan_lockout_endtime');
+                },
+
+                checkLockoutStatus() {
+                    const savedFailedCount = localStorage.getItem('hongyuan_login_failed_count');
+                    if (savedFailedCount) this.loginFailedCount = parseInt(savedFailedCount) || 0;
+
+                    const savedLockoutEnd = localStorage.getItem('hongyuan_lockout_endtime');
+                    if (savedLockoutEnd) {
+                        this.lockoutEndTime = parseInt(savedLockoutEnd) || 0;
+                        if (Date.now() < this.lockoutEndTime) {
+                            this.startLockoutCountdown();
+                        } else {
+                            this.resetLockout();
+                        }
+                    }
+                },
+
+                startLockoutCountdown() {
+                    const updateTimer = () => {
+                        const diff = Math.ceil((this.lockoutEndTime - Date.now()) / 1000);
+                        if (diff <= 0) {
+                            this.resetLockout();
+                        } else {
+                            this.lockoutRemainingSeconds = diff;
+                        }
+                    };
+                    updateTimer();
+                    if (this.lockoutTimerInterval) clearInterval(this.lockoutTimerInterval);
+                    this.lockoutTimerInterval = setInterval(updateTimer, 1000);
+                },
+
+                resetLockout() {
+                    if (this.lockoutTimerInterval) clearInterval(this.lockoutTimerInterval);
+                    this.lockoutRemainingSeconds = 0;
+                    this.loginFailedCount = 0;
+                    this.lockoutEndTime = 0;
+                    this.loginErrorMsg = '';
+                    localStorage.setItem('hongyuan_login_failed_count', 0);
+                    localStorage.removeItem('hongyuan_lockout_endtime');
+                },
+
+                formatLockoutTime(seconds) {
+                    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                    const s = (seconds % 60).toString().padStart(2, '0');
+                    return `${m}:${s}`;
+                },
+
+                saveAdminCredentials() {
+                    if (this.tempAdminAccount.trim() && this.tempAdminPassword.trim()) {
+                        this.siteAdminAccount = this.tempAdminAccount.trim();
+                        this.siteAdminPassword = this.tempAdminPassword.trim();
+                        localStorage.setItem('hongyuan_admin_account', this.siteAdminAccount);
+                        localStorage.setItem('hongyuan_admin_password', this.siteAdminPassword);
+                        alert('最高權限帳號與密碼已成功更新！');
+                    } else {
+                        alert('最高權限帳號與密碼不可為空！');
+                    }
+                },
+
+                addSystemUser() {
+                    if (this.systemUsers.length >= 20) {
+                        alert('已達系統用戶上限（最多 20 組）！');
+                        return;
+                    }
+                    if (!this.newSystemUser.username.trim() || !this.newSystemUser.password.trim()) {
+                        alert('請輸入用戶帳號與密碼！');
+                        return;
+                    }
+                    const exists = this.systemUsers.some(u => u.username === this.newSystemUser.username.trim());
+                    if (exists || this.newSystemUser.username.trim() === this.siteAdminAccount) {
+                        alert('此帳號已存在，請使用不同的帳號！');
+                        return;
+                    }
+                    this.systemUsers.push({
+                        id: Date.now(),
+                        username: this.newSystemUser.username.trim(),
+                        password: this.newSystemUser.password.trim(),
+                        name: this.newSystemUser.name.trim(),
+                        role: this.newSystemUser.role
+                    });
+                    this.saveSystemUsers();
+                    this.newSystemUser = { username: '', password: '', name: '', role: 'Inspector' };
+                    alert('新增用戶成功！');
+                },
+
+                removeSystemUser(id) {
+                    if (confirm('確定要刪除此用戶帳號？')) {
+                        this.systemUsers = this.systemUsers.filter(u => u.id !== id);
+                        this.saveSystemUsers();
+                    }
+                },
+
+                saveSystemUsers() {
+                    localStorage.setItem('hongyuan_system_users', JSON.stringify(this.systemUsers));
+                },
+
+                // 💾 專案儲存機制 (同時寫入 LocalStorage 與 Supabase 雲端)
+                saveProjectsToStorage() {
+                    const pIndex = this.projects.findIndex(p => p.id === this.selectedProjectId);
+                    if (pIndex !== -1) {
+                        this.projects[pIndex].items = JSON.parse(JSON.stringify(this.items));
+                        this.projects[pIndex].name = this.currentProjectName;
+                    }
+                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                    
+                    // 同步發送至 Supabase
+                    this.saveToSupabase();
+                },
+
+                get filteredItems() {
+                    return this.items.filter(item => {
+                        const q = this.searchQuery.toLowerCase();
+                        const matchQuery = !q || (item.name && item.name.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)) || (item.code && item.code.toLowerCase().includes(q));
+                        const matchSpace = !this.selectedSpaceFilter || item.space === this.selectedSpaceFilter;
+                        const matchCat = !this.selectedCategoryFilter || item.category === this.selectedCategoryFilter;
+                        const matchUnit = !this.selectedUnitFilter || item.unit === this.selectedUnitFilter;
+                        const matchStatus = !this.filterStatus || item.repairStatus === this.filterStatus;
+                        const matchInsp = !this.filterInspectionStatus || item.inspectionStatus === this.filterInspectionStatus;
+                        return matchQuery && matchSpace && matchCat && matchUnit && matchStatus && matchInsp;
+                    });
+                },
+
                 get totalPages() {
                     return Math.ceil(this.filteredItems.length / this.pageSize) || 1;
                 },
@@ -1773,482 +2265,350 @@
                     return this.filteredItems.slice(start, start + this.pageSize);
                 },
 
-                // Analytics 計算屬性
-                get analyticsTargetProject() {
-                    return this.projects.find(p => p.id === this.analyticsProjectId) || this.currentProject;
-                },
-                get analyticsSpaceList() {
-                    return Array.from(new Set((this.analyticsTargetProject.items || []).map(i => i.space).filter(Boolean)));
-                },
-                get analyticsUnitList() {
-                    return Array.from(new Set((this.analyticsTargetProject.items || []).map(i => i.unit).filter(Boolean)));
-                },
-                get analyticsCategoryList() {
-                    return Array.from(new Set((this.analyticsTargetProject.items || []).map(i => i.category).filter(Boolean)));
-                },
-                get analyticsFilteredItems() {
-                    const items = this.analyticsTargetProject.items || [];
-                    return items.filter(i => {
-                        const matchSpace = !this.analyticsSpace || i.space === this.analyticsSpace;
-                        const matchUnit = !this.analyticsUnit || i.unit === this.analyticsUnit;
-                        const matchCat = !this.analyticsCategory || i.category === this.analyticsCategory;
-                        return matchSpace && matchUnit && matchCat;
-                    });
-                },
-                get analyticsCompletedCount() {
-                    return this.analyticsFilteredItems.filter(i => i.repairStatus === '已完成').length;
-                },
-                get analyticsCompletionRate() {
-                    if (this.analyticsFilteredItems.length === 0) return 0;
-                    return Math.round((this.analyticsCompletedCount / this.analyticsFilteredItems.length) * 100);
-                },
-
-                // --- 初始化與持久化儲存 ---
-                init() {
-                    this.loadLocalStorage();
-                    this.checkLockoutStatus();
-                    this.analyticsProjectId = this.selectedProjectId;
-                    this.pdfForm.title = this.currentProjectName;
-                    this.pdfForm.projectName = this.currentProjectName;
-                },
-
-                loadLocalStorage() {
-                    try {
-                        const savedAuth = localStorage.getItem('hy_auth_status');
-                        if (savedAuth === 'true') this.isSiteAuthenticated = true;
-
-                        const savedAdminCreds = localStorage.getItem('hy_admin_credentials');
-                        if (savedAdminCreds) {
-                            const parsed = JSON.parse(savedAdminCreds);
-                            this.adminAccount = parsed.account || this.adminAccount;
-                            this.adminPassword = parsed.password || this.adminPassword;
-                        }
-                        this.tempAdminAccount = this.adminAccount;
-                        this.tempAdminPassword = this.adminPassword;
-
-                        const savedOwnerPwd = localStorage.getItem('hy_owner_password');
-                        if (savedOwnerPwd) this.ownerPassword = savedOwnerPwd;
-
-                        const savedProjects = localStorage.getItem('hy_projects');
-                        if (savedProjects) {
-                            this.projects = JSON.parse(savedProjects);
-                        }
-                        const savedProjId = localStorage.getItem('hy_selected_project_id');
-                        if (savedProjId && this.projects.some(p => p.id === savedProjId)) {
-                            this.selectedProjectId = savedProjId;
-                        }
-
-                        const savedSupa = localStorage.getItem('hy_supabase_config');
-                        if (savedSupa) {
-                            const parsed = JSON.parse(savedSupa);
-                            this.supabaseUrl = parsed.url || '';
-                            this.supabaseKey = parsed.key || '';
-                            this.initSupabase();
-                        }
-
-                        const savedUsers = localStorage.getItem('hy_system_users');
-                        if (savedUsers) this.systemUsers = JSON.parse(savedUsers);
-
-                        const savedInsp = localStorage.getItem('hy_custom_inspectors');
-                        if (savedInsp) this.customInspectors = JSON.parse(savedInsp);
-
-                        const savedVen = localStorage.getItem('hy_custom_vendors');
-                        if (savedVen) this.customVendors = JSON.parse(savedVen);
-
-                        const savedAdm = localStorage.getItem('hy_custom_admins');
-                        if (savedAdm) this.customAdmins = JSON.parse(savedAdm);
-                    } catch (e) {
-                        console.error("載入本地儲存出錯", e);
-                    }
-                },
-
-                saveProjectsToStorage() {
-                    try {
-                        localStorage.setItem('hy_projects', JSON.stringify(this.projects));
-                        localStorage.setItem('hy_selected_project_id', this.selectedProjectId);
-                    } catch (e) {
-                        console.error("儲存專案出錯", e);
-                    }
-                },
-
-                // --- Supabase 雲端設定 ---
-                initSupabase() {
-                    if (this.supabaseUrl && this.supabaseKey && window.supabase) {
-                        try {
-                            this.supabaseClient = window.supabase.createClient(this.supabaseUrl, this.supabaseKey);
-                        } catch (e) {
-                            console.error("Supabase 初始化失敗:", e);
-                        }
-                    }
-                },
-                saveSupabaseConfig() {
-                    localStorage.setItem('hy_supabase_config', JSON.stringify({ url: this.supabaseUrl, key: this.supabaseKey }));
-                    this.initSupabase();
-                    alert("Supabase 雲端金鑰已成功儲存！");
-                },
-
-                // --- 登入與防爆破鎖定機制 ---
-                handleSiteLogin() {
-                    if (this.lockoutRemainingSeconds > 0) return;
-
-                    if (this.siteLoginAccount === this.adminAccount && this.siteLoginPassword === this.adminPassword) {
-                        this.isSiteAuthenticated = true;
-                        this.loginErrorMsg = '';
-                        this.failedAttempts = 0;
-                        localStorage.setItem('hy_auth_status', 'true');
-                        return;
-                    }
-
-                    const matchedUser = this.systemUsers.find(u => u.username === this.siteLoginAccount && u.password === this.siteLoginPassword);
-                    if (matchedUser) {
-                        this.isSiteAuthenticated = true;
-                        this.currentRole = matchedUser.role;
-                        this.loginErrorMsg = '';
-                        this.failedAttempts = 0;
-                        localStorage.setItem('hy_auth_status', 'true');
-                        return;
-                    }
-
-                    this.failedAttempts++;
-                    if (this.failedAttempts >= 5) {
-                        const lockoutUntil = Date.now() + 300 * 1000;
-                        localStorage.setItem('hy_lockout_until', lockoutUntil.toString());
-                        this.startLockoutTimer(300);
-                        this.loginErrorMsg = '連續失敗5次，系統已限制登入！';
-                    } else {
-                        this.loginErrorMsg = `帳號或密碼錯誤！（剩餘嘗試次數：${5 - this.failedAttempts} 次）`;
-                    }
-                },
-
-                checkLockoutStatus() {
-                    const lockoutUntil = localStorage.getItem('hy_lockout_until');
-                    if (lockoutUntil) {
-                        const remaining = Math.ceil((parseInt(lockoutUntil) - Date.now()) / 1000);
-                        if (remaining > 0) {
-                            this.startLockoutTimer(remaining);
-                        } else {
-                            localStorage.removeItem('hy_lockout_until');
-                        }
-                    }
-                },
-
-                startLockoutTimer(seconds) {
-                    this.lockoutRemainingSeconds = seconds;
-                    if (this.lockoutTimer) clearInterval(this.lockoutTimer);
-                    this.lockoutTimer = setInterval(() => {
-                        this.lockoutRemainingSeconds--;
-                        if (this.lockoutRemainingSeconds <= 0) {
-                            clearInterval(this.lockoutTimer);
-                            this.failedAttempts = 0;
-                            localStorage.removeItem('hy_lockout_until');
-                        }
-                    }, 1000);
-                },
-
-                formatLockoutTime(seconds) {
-                    const m = Math.floor(seconds / 60);
-                    const s = seconds % 60;
-                    return `${m}分${s < 10 ? '0' : ''}${s}秒`;
-                },
-
-                // --- 角色與權限判斷 ---
-                currentRoleName() {
-                    if (this.currentRole === 'Owner') return '最高權限 (Owner)';
-                    if (this.currentRole === 'Inspector') return '主驗屋師';
-                    if (this.currentRole === 'Vendor') return '主要廠商';
-                    if (this.currentRole === 'Admin') return '工務/管理員';
-                    if (this.currentRole === 'Viewer') return '純觀看者 (Viewer)';
-                    if (this.currentRole.startsWith('CustomInspector_')) {
-                        const id = parseInt(this.currentRole.replace('CustomInspector_', ''));
-                        const ins = this.customInspectors.find(i => i.id === id);
-                        return ins ? ins.name : '驗屋師';
-                    }
-                    if (this.currentRole.startsWith('CustomVendor_')) {
-                        const id = parseInt(this.currentRole.replace('CustomVendor_', ''));
-                        const ven = this.customVendors.find(v => v.id === id);
-                        return ven ? ven.name : '廠商';
-                    }
-                    if (this.currentRole.startsWith('CustomAdmin_')) {
-                        const id = parseInt(this.currentRole.replace('CustomAdmin_', ''));
-                        const adm = this.customAdmins.find(a => a.id === id);
-                        return adm ? adm.name : '管理員';
-                    }
-                    return '使用者';
-                },
+                get spaceOptions() { return [...new Set(this.items.map(i => i.space).filter(Boolean))]; },
+                get categoryOptions() { return [...new Set(this.items.map(i => i.category).filter(Boolean))]; },
+                get unitOptions() { return [...new Set(this.items.map(i => i.unit).filter(Boolean))]; },
 
                 hasPermission(action) {
                     if (this.currentRole === 'Owner') return true;
-                    if (action === 'createProject') return this.currentRole === 'Owner';
-                    if (action === 'settings') return this.currentRole === 'Owner';
-                    if (action === 'delete') return ['Owner', 'Admin'].includes(this.currentRole) || this.currentRole.startsWith('CustomAdmin_');
-                    if (action === 'create') return ['Owner', 'Inspector', 'Admin'].includes(this.currentRole) || this.currentRole.startsWith('CustomInspector_') || this.currentRole.startsWith('CustomAdmin_');
-                    if (action === 'edit') return this.currentRole !== 'Viewer';
-                    return false;
+                    if (this.currentRole === 'Viewer') return false;
+                    if (action === 'createProject') return false; // 🔒 只有最高權限 (Owner) 可以新增與刪除專案
+                    if (action === 'edit' || action === 'create') return true;
+                    if (action === 'delete') return this.currentRole.startsWith('Admin') || this.currentRole === 'Owner';
+                    return true;
                 },
 
-                onRoleSelectChange(event) {
-                    const newRole = event.target.value;
-                    if (newRole === 'Owner') {
-                        this.promptPassword('請輸入最高權限密碼以切換角色：', (pwd) => {
-                            if (pwd === this.ownerPassword || pwd === this.adminPassword) {
-                                this.currentRole = newRole;
-                            } else {
-                                alert('密碼驗證錯誤！');
-                                event.target.value = this.currentRole;
-                            }
-                        });
-                    } else {
-                        this.currentRole = newRole;
+                currentRoleName() {
+                    if (this.currentRole === 'Owner') return '最高權限 (Owner)';
+                    if (this.currentRole === 'Viewer') return '純觀看者 (Viewer)';
+                    if (this.currentRole.startsWith('CustomInspector_')) {
+                        const id = parseInt(this.currentRole.split('_')[1]);
+                        const item = this.customInspectors.find(x => x.id === id);
+                        return item ? `${item.name} (${item.title})` : '驗屋人員';
                     }
-                },
-
-                checkSettingsAccess() {
-                    if (this.hasPermission('settings')) {
-                        this.activeTab = 'settings';
-                    } else {
-                        this.promptPassword('此區塊受保護，請輸入最高權限密碼：', (pwd) => {
-                            if (pwd === this.ownerPassword || pwd === this.adminPassword) {
-                                this.activeTab = 'settings';
-                            } else {
-                                alert('密碼驗證錯誤，無法存取系統設定！');
-                            }
-                        });
+                    if (this.currentRole.startsWith('CustomVendor_')) {
+                        const id = parseInt(this.currentRole.split('_')[1]);
+                        const item = this.customVendors.find(x => x.id === id);
+                        return item ? `${item.name} (${item.title})` : '廠商';
                     }
+                    if (this.currentRole.startsWith('CustomAdmin_')) {
+                        const id = parseInt(this.currentRole.split('_')[1]);
+                        const item = this.customAdmins.find(x => x.id === id);
+                        return item ? `${item.name} (${item.title})` : '工務/管理員';
+                    }
+                    if (this.currentRole === 'Inspector') return this.customInspectors[0] ? `${this.customInspectors[0].name}` : '驗屋人員';
+                    if (this.currentRole === 'Vendor') return this.customVendors[0] ? `${this.customVendors[0].name}` : '廠商';
+                    if (this.currentRole === 'Admin') return this.customAdmins[0] ? `${this.customAdmins[0].name}` : '工務/管理員';
+                    return this.currentRole;
                 },
 
-                promptPassword(title, callback) {
-                    this.passwordPromptTitle = title;
+                onRoleSelectChange(e) {
+                    const val = e.target.value;
+                    if (val === 'Viewer') {
+                        this.currentRole = 'Viewer';
+                        return;
+                    }
+                    this.targetPendingRole = val;
+                    this.passwordPromptTitle = `切換至 [${this.getRoleLabel(val)}] 需要身份驗證密碼`;
                     this.enteredPassword = '';
-                    this.passwordVerifyCallback = callback;
                     this.showPasswordModalFlag = true;
-                    this.$nextTick(() => {
-                        if (this.$refs.pwdInput) this.$refs.pwdInput.focus();
-                    });
+                },
+
+                getRoleLabel(roleKey) {
+                    if (roleKey === 'Owner') return '最高權限者';
+                    if (roleKey === 'Inspector' || roleKey.startsWith('CustomInspector_')) return '驗屋人員';
+                    if (roleKey === 'Vendor' || roleKey.startsWith('CustomVendor_')) return '廠商';
+                    if (roleKey === 'Admin' || roleKey.startsWith('CustomAdmin_')) return '工務/管理員';
+                    if (roleKey === 'Viewer') return '純觀看者';
+                    return roleKey;
                 },
 
                 verifyPassword() {
-                    const pwd = this.enteredPassword;
-                    this.showPasswordModalFlag = false;
-                    if (this.passwordVerifyCallback) {
-                        this.passwordVerifyCallback(pwd);
+                    let correctPwd = '';
+                    if (this.targetPendingRole === 'Owner') correctPwd = this.ownerPassword;
+                    else if (this.targetPendingRole === 'Inspector') correctPwd = this.customInspectors[0]?.password || '';
+                    else if (this.targetPendingRole.startsWith('CustomInspector_')) {
+                        const id = parseInt(this.targetPendingRole.split('_')[1]);
+                        correctPwd = this.customInspectors.find(x => x.id === id)?.password || '';
+                    } else if (this.targetPendingRole === 'Vendor') correctPwd = this.customVendors[0]?.password || '';
+                    else if (this.targetPendingRole.startsWith('CustomVendor_')) {
+                        const id = parseInt(this.targetPendingRole.split('_')[1]);
+                        correctPwd = this.customVendors.find(x => x.id === id)?.password || '';
+                    } else if (this.targetPendingRole === 'Admin') correctPwd = this.customAdmins[0]?.password || '';
+                    else if (this.targetPendingRole.startsWith('CustomAdmin_')) {
+                        const id = parseInt(this.targetPendingRole.split('_')[1]);
+                        correctPwd = this.customAdmins.find(x => x.id === id)?.password || '';
+                    }
+
+                    if (this.enteredPassword === correctPwd || correctPwd === '') {
+                        this.currentRole = this.targetPendingRole;
+                        this.showPasswordModalFlag = false;
+                    } else {
+                        alert('密碼錯誤！無法切換身份。');
+                        this.currentRole = 'Viewer';
+                        this.showPasswordModalFlag = false;
                     }
                 },
 
                 cancelPasswordModal() {
                     this.showPasswordModalFlag = false;
-                    this.passwordVerifyCallback = null;
                 },
 
-                // --- 系統設定操作 ---
-                saveAdminCredentials() {
-                    this.adminAccount = this.tempAdminAccount;
-                    this.adminPassword = this.tempAdminPassword;
-                    localStorage.setItem('hy_admin_credentials', JSON.stringify({ account: this.adminAccount, password: this.adminPassword }));
-                    alert('最高權限帳戶密碼已成功更新！');
+                checkSettingsAccess() {
+                    this.targetPendingRole = 'Owner';
+                    this.passwordPromptTitle = '進入【系統參數設定】需驗證 Owner 密碼';
+                    this.enteredPassword = '';
+                    this.showPasswordModalFlag = true;
+                    const origVerify = this.verifyPassword;
+                    this.verifyPassword = () => {
+                        if (this.enteredPassword === this.ownerPassword || this.enteredPassword === this.siteAdminPassword) {
+                            this.activeTab = 'settings';
+                            this.showPasswordModalFlag = false;
+                        } else {
+                            alert('密碼錯誤！');
+                            this.showPasswordModalFlag = false;
+                        }
+                        this.verifyPassword = origVerify;
+                    };
                 },
 
-                saveOwnerPassword() {
-                    this.ownerPassword = this.tempOwnerPassword;
-                    localStorage.setItem('hy_owner_password', this.ownerPassword);
-                    alert('最高權限快速切換密碼已更新！');
+                openPdfExportModal() {
+                    this.pdfForm.title = this.currentProjectName;
+                    this.pdfForm.projectName = this.currentProjectName;
+                    this.pdfForm.scale = 100;
+                    this.showPdfExportModalFlag = true;
                 },
 
-                addSystemUser() {
-                    if (!this.newSystemUser.username || !this.newSystemUser.password) {
-                        alert('請輸入完整的登入帳號與密碼！');
-                        return;
+                togglePdfPhotoType(type) {
+                    if (this.pdfForm.photoTypes.includes(type)) {
+                        if (this.pdfForm.photoTypes.length > 1) {
+                            this.pdfForm.photoTypes = this.pdfForm.photoTypes.filter(t => t !== type);
+                        }
+                    } else {
+                        if (this.pdfForm.photoTypes.length < 2) {
+                            this.pdfForm.photoTypes.push(type);
+                        } else {
+                            this.pdfForm.photoTypes.shift();
+                            this.pdfForm.photoTypes.push(type);
+                        }
                     }
-                    this.systemUsers.push({
-                        id: Date.now(),
-                        ...this.newSystemUser
+                },
+
+                exportToPdf() {
+                    const element = document.getElementById('pdf-export-template');
+                    if (!element) return;
+
+                    const scaleFactor = (this.pdfForm.scale || 100) / 100;
+                    const origTransform = element.style.transform;
+                    const origOrigin = element.style.transformOrigin;
+
+                    if (scaleFactor !== 1) {
+                        element.style.transform = `scale(${scaleFactor})`;
+                        element.style.transformOrigin = 'top left';
+                    }
+
+                    const opt = {
+                        margin: 5,
+                        filename: `${this.pdfForm.title || '驗屋缺失報告'}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true, logging: false },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        element.style.transform = origTransform;
+                        element.style.transformOrigin = origOrigin;
+                        this.showPdfExportModalFlag = false;
+                    }).catch(err => {
+                        console.error('PDF 匯出失敗', err);
+                        element.style.transform = origTransform;
+                        element.style.transformOrigin = origOrigin;
                     });
-                    this.newSystemUser = { username: '', password: '', name: '', role: 'Inspector' };
-                    localStorage.setItem('hy_system_users', JSON.stringify(this.systemUsers));
                 },
 
-                removeSystemUser(id) {
-                    this.systemUsers = this.systemUsers.filter(u => u.id !== id);
-                    localStorage.setItem('hy_system_users', JSON.stringify(this.systemUsers));
+                // 安全切換專案
+                switchProjectById(targetId) {
+                    if (!targetId || targetId === this.selectedProjectId) return;
+
+                    const currentIdx = this.projects.findIndex(p => p.id === this.selectedProjectId);
+                    if (currentIdx !== -1) {
+                        this.projects[currentIdx].items = JSON.parse(JSON.stringify(this.items));
+                        this.projects[currentIdx].name = this.currentProjectName;
+                    }
+
+                    const targetProj = this.projects.find(x => x.id === targetId);
+                    if (targetProj) {
+                        this.selectedProjectId = targetProj.id;
+                        this.currentProjectName = targetProj.name;
+                        this.items = JSON.parse(JSON.stringify(targetProj.items || []));
+                    }
+
+                    this.currentPage = 1;
+                    this.saveProjectsToStorage();
                 },
 
-                getRoleLabel(role) {
-                    const map = { Owner: '最高權限', Inspector: '驗屋人員', Vendor: '廠商', Admin: '工務/管理員', Viewer: '純觀看者' };
-                    return map[role] || role;
+                openEditProjectModal() {
+                    this.tempProjectNameInput = this.currentProjectName;
+                    this.showEditProjectModalFlag = true;
                 },
 
-                addInspector() {
-                    this.customInspectors.push({ id: Date.now(), name: '新驗屋師', title: '驗屋人員', password: '123' });
-                    localStorage.setItem('hy_custom_inspectors', JSON.stringify(this.customInspectors));
-                },
-                removeInspector(id) {
-                    this.customInspectors = this.customInspectors.filter(i => i.id !== id);
-                    localStorage.setItem('hy_custom_inspectors', JSON.stringify(this.customInspectors));
-                },
-
-                addVendor() {
-                    this.customVendors.push({ id: Date.now(), name: '新廠商', title: '工班廠商', password: '123' });
-                    localStorage.setItem('hy_custom_vendors', JSON.stringify(this.customVendors));
-                },
-                removeVendor(id) {
-                    this.customVendors = this.customVendors.filter(v => v.id !== id);
-                    localStorage.setItem('hy_custom_vendors', JSON.stringify(this.customVendors));
-                },
-
-                addAdmin() {
-                    this.customAdmins.push({ id: Date.now(), name: '新管理員', title: '工務組長', password: '123' });
-                    localStorage.setItem('hy_custom_admins', JSON.stringify(this.customAdmins));
-                },
-                removeAdmin(id) {
-                    this.customAdmins = this.customAdmins.filter(a => a.id !== id);
-                    localStorage.setItem('hy_custom_admins', JSON.stringify(this.customAdmins));
-                },
-
-                // --- 專案管理操作 ---
-                switchProjectById(id) {
-                    if (this.projects.some(p => p.id === id)) {
-                        this.selectedProjectId = id;
-                        this.analyticsProjectId = id;
-                        this.pdfForm.title = this.currentProjectName;
-                        this.pdfForm.projectName = this.currentProjectName;
-                        this.currentPage = 1;
+                saveProjectName() {
+                    if (this.tempProjectNameInput.trim()) {
+                        this.currentProjectName = this.tempProjectNameInput.trim();
                         this.saveProjectsToStorage();
+                        this.showEditProjectModalFlag = false;
                     }
                 },
 
                 openCreateProjectModal() {
-                    this.isEditingProject = false;
-                    this.projectForm = { id: 'proj-' + Date.now(), name: '' };
-                    this.showProjectModalFlag = true;
-                },
-
-                openEditProjectModal() {
-                    this.isEditingProject = true;
-                    this.projectForm = { id: this.currentProject.id, name: this.currentProject.name };
-                    this.showProjectModalFlag = true;
-                },
-
-                saveProject() {
-                    if (!this.projectForm.name.trim()) {
-                        alert('請輸入專案名稱！');
+                    if (!this.hasPermission('createProject')) {
+                        alert('只有最高權限 (Owner) 才可以建立新專案！');
                         return;
                     }
-                    if (this.isEditingProject) {
-                        const proj = this.projects.find(p => p.id === this.projectForm.id);
-                        if (proj) proj.name = this.projectForm.name.trim();
-                    } else {
-                        const newProj = {
-                            id: 'proj-' + Date.now(),
-                            name: this.projectForm.name.trim(),
-                            items: []
-                        };
-                        this.projects.push(newProj);
-                        this.selectedProjectId = newProj.id;
+                    this.newProjectNameInput = '';
+                    this.showCreateProjectModalFlag = true;
+                },
+
+                createNewProject() {
+                    if (!this.hasPermission('createProject')) {
+                        alert('只有最高權限 (Owner) 才可以建立新專案！');
+                        return;
                     }
+                    if (!this.newProjectNameInput.trim()) return;
+
                     this.saveProjectsToStorage();
-                    this.showProjectModalFlag = false;
+
+                    const newProj = {
+                        id: 'p_' + Date.now(),
+                        name: this.newProjectNameInput.trim(),
+                        items: []
+                    };
+                    this.projects.push(newProj);
+                    
+                    this.selectedProjectId = newProj.id;
+                    this.currentProjectName = newProj.name;
+                    this.items = [];
+                    this.currentPage = 1;
+                    this.saveProjectsToStorage();
+
+                    this.showCreateProjectModalFlag = false;
+                    this.activeTab = 'inspection';
                 },
 
                 deleteProject(id) {
-                    if (this.projects.length <= 1) {
-                        alert('必須至少保留一個專案！');
+                    if (!this.hasPermission('createProject')) {
+                        alert('只有最高權限 (Owner) 才可以刪除專案！');
                         return;
                     }
-                    if (confirm('確定要刪除此專案及其所有檢驗項目資料嗎？此操作不可逆！')) {
+                    if (this.projects.length <= 1) {
+                        alert('最少需保留一個專案！');
+                        return;
+                    }
+                    if (confirm('確定要刪除此專案與專案內所有項目嗎？')) {
                         this.projects = this.projects.filter(p => p.id !== id);
                         if (this.selectedProjectId === id) {
-                            this.selectedProjectId = this.projects[0].id;
+                            const firstProj = this.projects[0];
+                            this.selectedProjectId = firstProj.id;
+                            this.currentProjectName = firstProj.name;
+                            this.items = JSON.parse(JSON.stringify(firstProj.items || []));
+                        }
+                        this.currentPage = 1;
+                        this.saveProjectsToStorage();
+
+                        if (this.supabaseClient) {
+                            this.supabaseClient.from('projects').delete().eq('id', id).then();
+                        }
+                    }
+                },
+
+                getPhotosByType(item, type) {
+                    if (!item) return [];
+                    if (type === 'defect') return item.defectPhotos || [];
+                    if (type === 'repair') return item.repairPhotos || [];
+                    if (type === 'inspection') return item.inspectionPhotos || [];
+                    return [];
+                },
+
+                currentPhotoList() {
+                    return this.getPhotosByType(this.currentPhotoItem, this.currentPhotoType);
+                },
+
+                openPhotoModal(item, type) {
+                    this.currentPhotoItem = item;
+                    this.currentPhotoType = type;
+                    this.activePhotoIndex = 0;
+                    this.showPhotoModalFlag = true;
+                },
+
+                closePhotoModal() {
+                    this.showPhotoModalFlag = false;
+                    this.saveProjectsToStorage();
+                },
+
+                async uploadPhotosFromInput(e) {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        const photoUrl = await this.uploadImageToCloud(file);
+                        const listKey = this.currentPhotoType + 'Photos';
+                        if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
+                        this.currentPhotoItem[listKey].push(photoUrl);
+                    }
+                    this.saveProjectsToStorage();
+                },
+
+                async handleFileDrop(e) {
+                    const files = e.dataTransfer.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        if (file.type.startsWith('image/')) {
+                            const photoUrl = await this.uploadImageToCloud(file);
+                            const listKey = this.currentPhotoType + 'Photos';
+                            if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
+                            this.currentPhotoItem[listKey].push(photoUrl);
+                        }
+                    }
+                    this.saveProjectsToStorage();
+                },
+
+                deleteActivePhoto() {
+                    const listKey = this.currentPhotoType + 'Photos';
+                    if (this.currentPhotoItem[listKey] && this.currentPhotoItem[listKey].length > 0) {
+                        this.currentPhotoItem[listKey].splice(this.activePhotoIndex, 1);
+                        if (this.activePhotoIndex >= this.currentPhotoItem[listKey].length) {
+                            this.activePhotoIndex = Math.max(0, this.currentPhotoItem[listKey].length - 1);
                         }
                         this.saveProjectsToStorage();
                     }
                 },
 
-                // --- 缺失項目操作 ---
-                openNewItemModal() {
-                    this.isEditingItem = false;
-                    const seq = (this.items.length + 1).toString().padStart(2, '0');
-                    this.itemForm = {
-                        id: 'item-' + Date.now(),
-                        code: 'A-' + seq,
-                        name: '',
-                        space: '客廳',
-                        category: '泥作工程',
-                        unit: this.unitOptions[0] || 'A1-10F',
-                        method: '目視檢查',
-                        repairStatus: '待修繕',
-                        inspectionStatus: '待複查',
-                        dueDate: '',
-                        completeDate: '',
-                        inspector: '',
-                        remark: '',
-                        defectPhotos: [],
-                        repairPhotos: [],
-                        inspectionPhotos: []
-                    };
-                    this.showItemModalFlag = true;
-                },
-
-                openEditModal(item) {
-                    this.isEditingItem = true;
-                    this.itemForm = JSON.parse(JSON.stringify(item));
-                    this.showItemModalFlag = true;
-                },
-
-                saveItem() {
-                    if (!this.itemForm.name.trim()) {
-                        alert('請輸入缺失名稱說明！');
-                        return;
-                    }
-                    if (this.isEditingItem) {
-                        const idx = this.items.findIndex(i => i.id === this.itemForm.id);
-                        if (idx !== -1) {
-                            this.items[idx] = { ...this.itemForm };
-                        }
-                    } else {
-                        this.items.push({ ...this.itemForm });
-                    }
-                    this.saveProjectsToStorage();
-                    this.showItemModalFlag = false;
-                },
-
-                deleteItem(id) {
-                    if (confirm('確定要刪除此筆驗屋缺失項目嗎？')) {
-                        const idx = this.items.findIndex(i => i.id === id);
-                        if (idx !== -1) {
-                            this.items.splice(idx, 1);
-                            this.saveProjectsToStorage();
-                        }
+                openOriginalImageView() {
+                    const list = this.currentPhotoList();
+                    if (list.length > 0) {
+                        window.open(list[this.activePhotoIndex], '_blank');
                     }
                 },
 
                 onStatusOrPhotoChange(item) {
+                    if (item.repairStatus === '已完成' && !item.completeDate) {
+                        item.completeDate = new Date().toISOString().split('T')[0];
+                    }
                     this.saveProjectsToStorage();
                 },
 
-                // --- 表格拖曳欄位排序 ---
-                handleHeaderDragStart(e, index) {
-                    this.draggedColIndex = index;
-                    e.dataTransfer.effectAllowed = 'move';
-                },
-                handleHeaderDrop(e, index) {
-                    if (this.draggedColIndex === null || this.draggedColIndex === index) return;
-                    const draggedCol = this.tableColumns[this.draggedColIndex];
-                    this.tableColumns.splice(this.draggedColIndex, 1);
-                    this.tableColumns.splice(index, 0, draggedCol);
-                    this.draggedColIndex = null;
-                },
-
-                // --- 列表長按與批量操作 ---
                 startRowPress(id) {
-                    this.rowPressTimer = setTimeout(() => {
+                    this.pressTimer = setTimeout(() => {
                         this.batchMode = true;
                         if (!this.selectedItemIds.includes(id)) {
                             this.selectedItemIds.push(id);
                         }
                     }, 600);
                 },
+
                 cancelRowPress() {
-                    if (this.rowPressTimer) clearTimeout(this.rowPressTimer);
+                    if (this.pressTimer) clearTimeout(this.pressTimer);
                 },
+
                 toggleSelectAll() {
                     if (this.selectedItemIds.length === this.filteredItems.length) {
                         this.selectedItemIds = [];
@@ -2256,164 +2616,250 @@
                         this.selectedItemIds = this.filteredItems.map(i => i.id);
                     }
                 },
+
                 applyBatchSpace() {
                     if (!this.batchTargetSpace) return;
                     this.items.forEach(i => {
-                        if (this.selectedItemIds.includes(i.id)) {
-                            i.space = this.batchTargetSpace;
-                        }
+                        if (this.selectedItemIds.includes(i.id)) i.space = this.batchTargetSpace;
                     });
                     this.saveProjectsToStorage();
-                    alert('已完成批量修改空間！');
                 },
+
                 applyBatchStatus() {
                     if (!this.batchTargetStatus) return;
                     this.items.forEach(i => {
                         if (this.selectedItemIds.includes(i.id)) {
                             i.repairStatus = this.batchTargetStatus;
+                            if (i.repairStatus === '已完成' && !i.completeDate) {
+                                i.completeDate = new Date().toISOString().split('T')[0];
+                            }
                         }
                     });
                     this.saveProjectsToStorage();
-                    alert('已完成批量修改修繕狀態！');
                 },
+
                 deleteBatchItems() {
-                    if (confirm(`確定要刪除選取的 ${this.selectedItemIds.length} 項缺失資料嗎？`)) {
-                        this.currentProject.items = this.items.filter(i => !this.selectedItemIds.includes(i.id));
+                    if (confirm(`確定刪除所選取的 ${this.selectedItemIds.length} 個項目？`)) {
+                        this.items = this.items.filter(i => !this.selectedItemIds.includes(i.id));
                         this.selectedItemIds = [];
                         this.saveProjectsToStorage();
                     }
                 },
+
                 exitBatchMode() {
                     this.batchMode = false;
                     this.selectedItemIds = [];
                 },
 
-                // --- 圖庫模式切換 ---
+                handleHeaderDragStart(e, idx) {
+                    this.draggedColIndex = idx;
+                },
+
+                handleHeaderDrop(e, idx) {
+                    if (this.draggedColIndex !== null && this.draggedColIndex !== idx) {
+                        const movedCol = this.tableColumns.splice(this.draggedColIndex, 1)[0];
+                        this.tableColumns.splice(idx, 0, movedCol);
+                    }
+                    this.draggedColIndex = null;
+                },
+
+                openNewItemModal() {
+                    this.newItemForm = {
+                        name: '',
+                        space: this.spaceList[0] || '玄關',
+                        category: this.categoryList[0] || '油漆工種',
+                        method: this.methodList[0] || '目視檢驗',
+                        unit: this.unitList[0] || 'A3-01',
+                        dueDate: '',
+                        remark: '',
+                        defectPhotos: []
+                    };
+                    this.showNewItemModalFlag = true;
+                },
+
+                async uploadNewItemPhotos(e) {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        const photoUrl = await this.uploadImageToCloud(file);
+                        this.newItemForm.defectPhotos.push(photoUrl);
+                    }
+                },
+
+                async handleNewItemDrop(e) {
+                    const files = e.dataTransfer.files;
+                    if (!files || files.length === 0) return;
+                    for (let file of Array.from(files)) {
+                        if (file.type.startsWith('image/')) {
+                            const photoUrl = await this.uploadImageToCloud(file);
+                            this.newItemForm.defectPhotos.push(photoUrl);
+                        }
+                    }
+                },
+
+                removeNewItemPhoto(idx) {
+                    this.newItemForm.defectPhotos.splice(idx, 1);
+                },
+
+                saveNewItem() {
+                    if (!this.newItemForm.name.trim()) {
+                        alert('請輸入項目名稱！');
+                        return;
+                    }
+                    const newItem = {
+                        id: Date.now().toString(),
+                        code: 'ITEM-' + (this.items.length + 1).toString().padStart(2, '0'),
+                        name: this.newItemForm.name.trim(),
+                        space: this.newItemForm.space,
+                        category: this.newItemForm.category,
+                        method: this.newItemForm.method,
+                        unit: this.newItemForm.unit,
+                        repairStatus: '待修繕',
+                        inspectionStatus: '待複查',
+                        dueDate: this.newItemForm.dueDate,
+                        completeDate: '',
+                        inspector: this.currentRoleName(),
+                        remark: this.newItemForm.remark,
+                        defectPhotos: [...this.newItemForm.defectPhotos],
+                        repairPhotos: [],
+                        inspectionPhotos: []
+                    };
+                    this.items.unshift(newItem);
+                    this.saveProjectsToStorage();
+                    this.showNewItemModalFlag = false;
+                },
+
+                openEditModal(item) {
+                    this.editItemForm = JSON.parse(JSON.stringify(item));
+                    this.showEditItemModalFlag = true;
+                },
+
+                saveEditItem() {
+                    const index = this.items.findIndex(i => i.id === this.editItemForm.id);
+                    if (index !== -1) {
+                        this.items[index] = { ...this.editItemForm };
+                        this.saveProjectsToStorage();
+                    }
+                    this.showEditItemModalFlag = false;
+                },
+
+                deleteItem(id) {
+                    if (confirm('確定要刪除此驗屋缺失項目？')) {
+                        this.items = this.items.filter(i => !this.selectedItemIds.includes(i.id) && i.id !== id);
+                        this.saveProjectsToStorage();
+                    }
+                },
+
+                openOptionEdit(key) {
+                    this.optionEditTargetKey = key;
+                    if (key === 'space') { this.optionEditTitle = '空間位置'; this.tempOptionList = [...this.spaceList]; }
+                    if (key === 'category') { this.optionEditTitle = '工種/類別'; this.tempOptionList = [...this.categoryList]; }
+                    if (key === 'method') { this.optionEditTitle = '驗收方法'; this.tempOptionList = [...this.methodList]; }
+                    if (key === 'unit') { this.optionEditTitle = '戶別'; this.tempOptionList = [...this.unitList]; }
+                    this.showOptionEditModalFlag = true;
+                },
+
+                addOptionItem() {
+                    this.tempOptionList.push('新選項');
+                },
+
+                removeOptionItem(idx) {
+                    this.tempOptionList.splice(idx, 1);
+                },
+
+                saveOptionEdit() {
+                    const filtered = this.tempOptionList.map(s => s.trim()).filter(Boolean);
+                    if (this.optionEditTargetKey === 'space') this.spaceList = filtered;
+                    if (this.optionEditTargetKey === 'category') this.categoryList = filtered;
+                    if (this.optionEditTargetKey === 'method') this.methodList = filtered;
+                    if (this.optionEditTargetKey === 'unit') this.unitList = filtered;
+                    this.showOptionEditModalFlag = false;
+                },
+
                 openGalleryModal() {
                     this.viewMode = 'gallery';
                     this.showGalleryModalFlag = true;
                 },
+
                 closeGalleryModal() {
                     this.showGalleryModalFlag = false;
-                    this.viewMode = 'table';
                 },
 
-                // --- 照片管理 ---
-                openPhotoModal(item, photoType) {
-                    this.activePhotoItem = item;
-                    this.activePhotoType = photoType;
-                    this.showPhotoModalFlag = true;
-                },
-                closePhotoModal() {
-                    this.showPhotoModalFlag = false;
-                    this.activePhotoItem = null;
-                },
-                photoModalTitle() {
-                    const typeMap = { defect: '【缺失照片管理】', repair: '【修繕照片管理】', inspection: '【工檢照片管理】' };
-                    return typeMap[this.activePhotoType] || '照片管理';
-                },
-                activePhotoList() {
-                    if (!this.activePhotoItem) return [];
-                    return this.getPhotosByType(this.activePhotoItem, this.activePhotoType);
-                },
-                getPhotosByType(item, pType) {
-                    if (!item) return [];
-                    if (pType === 'defect') return item.defectPhotos || [];
-                    if (pType === 'repair') return item.repairPhotos || [];
-                    if (pType === 'inspection') return item.inspectionPhotos || [];
-                    return [];
-                },
-                async handlePhotoUpload(event) {
-                    const files = Array.from(event.target.files);
-                    if (!files.length || !this.activePhotoItem) return;
-
-                    for (let file of files) {
-                        if (this.supabaseClient) {
-                            try {
-                                const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${file.name}`;
-                                const { data, error } = await this.supabaseClient.storage.from('photos').upload(fileName, file);
-                                if (error) throw error;
-                                const { data: publicData } = this.supabaseClient.storage.from('photos').getPublicUrl(fileName);
-                                this.addPhotoUrlToActiveItem(publicData.publicUrl);
-                            } catch (e) {
-                                console.error('Supabase 上傳失敗，改用 Base64 儲存', e);
-                                const base64 = await this.readFileAsDataURL(file);
-                                this.addPhotoUrlToActiveItem(base64);
-                            }
-                        } else {
-                            const base64 = await this.readFileAsDataURL(file);
-                            this.addPhotoUrlToActiveItem(base64);
-                        }
+                saveOwnerPassword() {
+                    if (this.tempOwnerPassword.trim()) {
+                        this.ownerPassword = this.tempOwnerPassword.trim();
+                        alert('Owner 密碼已更新！');
+                        this.tempOwnerPassword = '';
                     }
-                    this.saveProjectsToStorage();
                 },
-                readFileAsDataURL(file) {
-                    return new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => resolve(e.target.result);
-                        reader.readAsDataURL(file);
+
+                addInspector() {
+                    if (this.customInspectors.length < 5) {
+                        this.customInspectors.push({ id: Date.now(), name: '新驗屋員', title: '檢測員', password: '' });
+                    }
+                },
+                removeInspector(id) {
+                    this.customInspectors = this.customInspectors.filter(x => x.id !== id);
+                },
+
+                addVendor() {
+                    if (this.customVendors.length < 5) {
+                        this.customVendors.push({ id: Date.now(), name: '新廠商', title: '配合廠商', password: '' });
+                    }
+                },
+                removeVendor(id) {
+                    this.customVendors = this.customVendors.filter(x => x.id !== id);
+                },
+
+                addAdmin() {
+                    if (this.customAdmins.length < 5) {
+                        this.customAdmins.push({ id: Date.now(), name: '新工務', title: '管理員', password: '' });
+                    }
+                },
+                removeAdmin(id) {
+                    this.customAdmins = this.customAdmins.filter(x => x.id !== id);
+                },
+
+                switchAnalyticsProject(projId) {
+                    const p = this.projects.find(x => x.id === projId);
+                    if (p) {
+                        this.analyticsSpace = '';
+                        this.analyticsUnit = '';
+                        this.analyticsCategory = '';
+                    }
+                },
+
+                get analyticsCurrentProjectItems() {
+                    const p = this.projects.find(x => x.id === this.analyticsProjectId);
+                    return p ? (p.items || []) : [];
+                },
+
+                get analyticsSpaceList() {
+                    return [...new Set(this.analyticsCurrentProjectItems.map(i => i.space).filter(Boolean))];
+                },
+                get analyticsUnitList() {
+                    return [...new Set(this.analyticsCurrentProjectItems.map(i => i.unit).filter(Boolean))];
+                },
+                get analyticsCategoryList() {
+                    return [...new Set(this.analyticsCurrentProjectItems.map(i => i.category).filter(Boolean))];
+                },
+
+                get analyticsFilteredItems() {
+                    return this.analyticsCurrentProjectItems.filter(i => {
+                        const mSpace = !this.analyticsSpace || i.space === this.analyticsSpace;
+                        const mUnit = !this.analyticsUnit || i.unit === this.analyticsUnit;
+                        const mCat = !this.analyticsCategory || i.category === this.analyticsCategory;
+                        return mSpace && mUnit && mCat;
                     });
                 },
-                addPhotoUrlToActiveItem(url) {
-                    if (this.activePhotoType === 'defect') {
-                        if (!this.activePhotoItem.defectPhotos) this.activePhotoItem.defectPhotos = [];
-                        this.activePhotoItem.defectPhotos.push(url);
-                    } else if (this.activePhotoType === 'repair') {
-                        if (!this.activePhotoItem.repairPhotos) this.activePhotoItem.repairPhotos = [];
-                        this.activePhotoItem.repairPhotos.push(url);
-                    } else if (this.activePhotoType === 'inspection') {
-                        if (!this.activePhotoItem.inspectionPhotos) this.activePhotoItem.inspectionPhotos = [];
-                        this.activePhotoItem.inspectionPhotos.push(url);
-                    }
-                },
-                deletePhoto(index) {
-                    const list = this.activePhotoList();
-                    list.splice(index, 1);
-                    this.saveProjectsToStorage();
+
+                get analyticsCompletedCount() {
+                    return this.analyticsFilteredItems.filter(i => i.repairStatus === '已完成').length;
                 },
 
-                // --- PDF 匯出 ---
-                openPdfExportModal() {
-                    this.pdfForm.title = this.currentProjectName;
-                    this.pdfForm.projectName = this.currentProjectName;
-                    this.showPdfExportModalFlag = true;
-                },
-                togglePdfPhotoType(type) {
-                    const idx = this.pdfForm.photoTypes.indexOf(type);
-                    if (idx !== -1) {
-                        if (this.pdfForm.photoTypes.length > 1) {
-                            this.pdfForm.photoTypes.splice(idx, 1);
-                        }
-                    } else {
-                        if (this.pdfForm.photoTypes.length >= 2) {
-                            this.pdfForm.photoTypes.shift();
-                        }
-                        this.pdfForm.photoTypes.push(type);
-                    }
-                },
-                exportToPdf() {
-                    const element = document.getElementById('pdf-export-template');
-                    if (!element) return;
-
-                    const scaleVal = (this.pdfForm.scale / 100);
-                    const opt = {
-                        margin: 5,
-                        filename: `${this.pdfForm.title || this.currentProjectName}_缺失報告說明書.pdf`,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2 * scaleVal, useCORS: true, logging: false },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    };
-
-                    this.showPdfExportModalFlag = false;
-                    html2pdf().set(opt).from(element).save();
-                },
-
-                // --- 數據統計分析 ---
-                switchAnalyticsProject(projId) {
-                    this.analyticsProjectId = projId;
-                    this.analyticsSpace = '';
-                    this.analyticsUnit = '';
-                    this.analyticsCategory = '';
+                get analyticsCompletionRate() {
+                    if (this.analyticsFilteredItems.length === 0) return 0;
+                    return Math.round((this.analyticsCompletedCount / this.analyticsFilteredItems.length) * 100);
                 }
             };
         }
