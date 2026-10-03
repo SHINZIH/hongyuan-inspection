@@ -833,7 +833,8 @@
                                         <input type="password" x-model="supabaseKey" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="請貼上 anon/public key">
                                     </div>
                                 </div>
-                                <div class="flex justify-end pt-1">
+                                <div class="flex items-center justify-between gap-3 pt-1">
+                                    <span class="text-xs font-semibold" :class="isRealtimeConnected ? 'text-emerald-600' : 'text-amber-600'" x-text="isRealtimeConnected ? '● 已連線：projects + inspection_items + Realtime' : '○ 尚未連線／請檢查 SQL、RLS 與 Storage 設定'"></span>
                                     <button @click="saveSupabaseConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存 Supabase 設定並連線</button>
                                 </div>
                             </div>
@@ -1735,10 +1736,14 @@
                 
                 // Supabase 雲端對接與 Realtime 廣播狀態
                 supabaseUrl: localStorage.getItem('hongyuan_supabase_url') || 'https://cpgdfijbebqfvvbnjsqz.supabase.co',
-                supabaseKey: localStorage.getItem('hongyuan_supabase_key') || '',
+                supabaseKey: localStorage.getItem('hongyuan_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZ2RmaWpiZWJxZnZ2Ym5qc3F6IiwiaWF0IjoxNzkxMDI0MTIyLCJleHAiOjIxMDY2MDAxMjJ9.K9xOs2whoFBaI5KHj-2-6p95Umq_nLOe1HTfcNOPuU20',
                 supabaseClient: null,
                 realtimeChannel: null,
                 isRealtimeConnected: false,
+                supabasePhotoBucket: 'inspection-photos',
+                cloudWriteQueue: Promise.resolve(),
+                cloudProjectSnapshot: {},
+                cloudItemSnapshot: {},
 
                 // 分頁控制狀態
                 currentPage: 1,
@@ -1919,10 +1924,11 @@
                     this.initSupabase();
                 },
 
-                // 初始化與儲存 Supabase 連線及廣播頻道
+                // 初始化 Supabase、載入雲端資料，並同時監聽 projects / inspection_items
                 initSupabase() {
                     if (!this.supabaseUrl || !this.supabaseKey) {
                         this.isRealtimeConnected = false;
+                        this.supabaseClient = null;
                         return;
                     }
 
@@ -1932,161 +1938,451 @@
                     }
 
                     try {
-                        this.supabaseClient = window.supabase.createClient(this.supabaseUrl.trim(), this.supabaseKey.trim());
-                        
-                        // 載入雲端最新專案與缺失資料
-                        this.fetchDataFromSupabase();
-
-                        // 重設並開啟 Supabase Realtime 即時推播監聽
-                        if (this.realtimeChannel) {
+                        if (this.realtimeChannel && this.supabaseClient) {
                             this.supabaseClient.removeChannel(this.realtimeChannel);
                         }
 
+                        this.supabaseClient = window.supabase.createClient(
+                            this.supabaseUrl.trim(),
+                            this.supabaseKey.trim()
+                        );
+
+                        this.fetchDataFromSupabase();
+
+                        // 同一個 Realtime channel 同時監聽兩張資料表。
                         this.realtimeChannel = this.supabaseClient
-                            .channel('public-projects-realtime')
+                            .channel('hongyuan-inspection-db-changes')
                             .on(
                                 'postgres_changes',
                                 { event: '*', schema: 'public', table: 'projects' },
-                                (payload) => {
-                                    this.handleRealtimePayload(payload);
-                                }
+                                (payload) => this.handleRealtimePayload(payload, 'projects')
                             )
-                            .subscribe((status) => {
+                            .on(
+                                'postgres_changes',
+                                { event: '*', schema: 'public', table: 'inspection_items' },
+                                (payload) => this.handleRealtimePayload(payload, 'inspection_items')
+                            )
+                            .subscribe((status, err) => {
                                 if (status === 'SUBSCRIBED') {
                                     this.isRealtimeConnected = true;
-                                    console.log('Supabase Realtime 連線成功！');
-                                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                                    console.log('Supabase Realtime 連線成功：projects + inspection_items');
+                                } else if (
+                                    status === 'CHANNEL_ERROR' ||
+                                    status === 'TIMED_OUT' ||
+                                    status === 'CLOSED'
+                                ) {
                                     this.isRealtimeConnected = false;
+                                    console.error('Supabase Realtime 狀態：', status, err || '');
                                 }
                             });
                     } catch (err) {
-                        console.error('Supabase 連線失敗:', err);
+                        console.error('Supabase 初始化失敗:', err);
+                        this.supabaseClient = null;
                         this.isRealtimeConnected = false;
                     }
                 },
 
                 saveSupabaseConfig() {
-                    localStorage.setItem('hongyuan_supabase_url', this.supabaseUrl.trim());
-                    localStorage.setItem('hongyuan_supabase_key', this.supabaseKey.trim());
+                    this.supabaseUrl = (this.supabaseUrl || '').trim();
+                    this.supabaseKey = (this.supabaseKey || '').trim();
+
+                    localStorage.setItem('hongyuan_supabase_url', this.supabaseUrl);
+                    localStorage.setItem('hongyuan_supabase_key', this.supabaseKey);
+
+                    if (!this.supabaseUrl || !this.supabaseKey) {
+                        this.supabaseClient = null;
+                        this.isRealtimeConnected = false;
+                        alert('Supabase URL / Anon Key 不可為空白。');
+                        return;
+                    }
+
                     this.initSupabase();
-                    alert('Supabase 金鑰已儲存並成功對接雲端！');
+                    alert('Supabase 設定已儲存，正在建立雲端連線。');
                 },
 
-                // 從 Supabase 抓取所有專案資料
+                mapDbItem(row) {
+                    return {
+                        id: row.id,
+                        projectId: row.project_id,
+                        code: row.code || '',
+                        name: row.name || '',
+                        method: row.method || '',
+                        space: row.space || '',
+                        category: row.category || '',
+                        unit: row.unit || '',
+                        defectPhotos: Array.isArray(row.defect_photos) ? row.defect_photos : [],
+                        repairPhotos: Array.isArray(row.repair_photos) ? row.repair_photos : [],
+                        inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
+                        repairStatus: row.repair_status || '待修繕',
+                        inspectionStatus: row.inspection_status || '待複查',
+                        dueDate: row.due_date || '',
+                        completeDate: row.complete_date || '',
+                        inspector: row.inspector || '',
+                        remark: row.remark || '',
+                        createdAt: row.created_at || null,
+                        updatedAt: row.updated_at || null
+                    };
+                },
+
+                mapItemToDb(item, projectId) {
+                    return {
+                        id: String(item.id),
+                        project_id: projectId || this.selectedProjectId,
+                        code: item.code || null,
+                        name: item.name || '',
+                        method: item.method || null,
+                        space: item.space || null,
+                        category: item.category || null,
+                        unit: item.unit || null,
+                        defect_photos: Array.isArray(item.defectPhotos) ? item.defectPhotos : [],
+                        repair_photos: Array.isArray(item.repairPhotos) ? item.repairPhotos : [],
+                        inspection_photos: Array.isArray(item.inspectionPhotos) ? item.inspectionPhotos : [],
+                        repair_status: item.repairStatus || '待修繕',
+                        inspection_status: item.inspectionStatus || '待複查',
+                        due_date: item.dueDate || null,
+                        complete_date: item.completeDate || null,
+                        inspector: item.inspector || null,
+                        remark: item.remark || null,
+                        updated_at: new Date().toISOString()
+                    };
+                },
+
+                cloudItemSignature(item) {
+                    const db = this.mapItemToDb(item, item.projectId || this.selectedProjectId);
+                    delete db.updated_at;
+                    return JSON.stringify(db);
+                },
+
+                enqueueCloudWrite(task) {
+                    this.cloudWriteQueue = this.cloudWriteQueue
+                        .then(() => task())
+                        .catch(err => console.error('Supabase 雲端同步失敗:', err));
+                    return this.cloudWriteQueue;
+                },
+
                 async fetchDataFromSupabase() {
                     if (!this.supabaseClient) return;
+
                     try {
-                        const { data, error } = await this.supabaseClient
-                            .from('projects')
-                            .select('*');
+                        const [projectResult, itemResult] = await Promise.all([
+                            this.supabaseClient
+                                .from('projects')
+                                .select('id,name,created_at,created_by')
+                                .order('created_at', { ascending: true }),
+                            this.supabaseClient
+                                .from('inspection_items')
+                                .select('*')
+                                .order('created_at', { ascending: true })
+                        ]);
 
-                        if (!error && data && data.length > 0) {
-                            this.projects = data.map(p => ({
-                                id: p.id,
-                                name: p.name,
-                                items: p.items || []
-                            }));
+                        if (projectResult.error) throw projectResult.error;
+                        if (itemResult.error) throw itemResult.error;
 
-                            const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
-                            if (currentExist) {
-                                this.currentProjectName = currentExist.name;
-                                this.items = currentExist.items || [];
-                            } else if (this.projects.length > 0) {
-                                this.selectedProjectId = this.projects[0].id;
-                                this.currentProjectName = this.projects[0].name;
-                                this.items = this.projects[0].items || [];
-                            }
-                            this.isRealtimeConnected = true;
-                            localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
-                        } else if (data && data.length === 0) {
-                            // 雲端資料庫若為空，自動同步本地初選專案上去
-                            this.saveToSupabase();
+                        const projectRows = projectResult.data || [];
+                        const itemRows = itemResult.data || [];
+
+                        if (projectRows.length === 0) {
+                            await this.seedLocalDataToSupabase();
+                            return;
                         }
+
+                        const groupedItems = {};
+                        this.cloudItemSnapshot = {};
+
+                        itemRows.forEach(row => {
+                            const mapped = this.mapDbItem(row);
+                            if (!groupedItems[row.project_id]) groupedItems[row.project_id] = [];
+                            groupedItems[row.project_id].push(mapped);
+                            this.cloudItemSnapshot[mapped.id] = this.cloudItemSignature(mapped);
+                        });
+
+                        this.projects = projectRows.map(p => ({
+                            id: p.id,
+                            name: p.name || '未命名專案',
+                            items: groupedItems[p.id] || []
+                        }));
+
+                        this.cloudProjectSnapshot = {};
+                        this.projects.forEach(p => {
+                            this.cloudProjectSnapshot[p.id] = p.name;
+                        });
+
+                        const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
+                        const target = currentExist || this.projects[0];
+
+                        if (target) {
+                            this.selectedProjectId = target.id;
+                            this.currentProjectName = target.name;
+                            this.items = JSON.parse(JSON.stringify(target.items || []));
+                        }
+
+                        localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                        this.isRealtimeConnected = true;
+                        console.log(`Supabase 載入完成：${this.projects.length} 個專案、${itemRows.length} 筆缺失。`);
                     } catch (err) {
                         console.error('從 Supabase 讀取資料失敗:', err);
+                        this.isRealtimeConnected = false;
+                        alert('Supabase 讀取失敗，已暫時保留瀏覽器本地資料。請確認 RLS / Data API / Realtime 設定。');
                     }
                 },
 
-                // 儲存/同步所有專案及缺失資料至 Supabase
-                async saveToSupabase() {
+                async seedLocalDataToSupabase() {
                     if (!this.supabaseClient) return;
+
+                    const localProjects = JSON.parse(JSON.stringify(this.projects || []));
+                    if (!localProjects.length) return;
+
                     try {
-                        for (let p of this.projects) {
-                            await this.supabaseClient.from('projects').upsert({
-                                id: p.id,
-                                name: p.name,
-                                items: JSON.parse(JSON.stringify(p.items || [])),
-                                updated_at: new Date().toISOString()
+                        const projectRows = localProjects.map(p => ({
+                            id: String(p.id),
+                            name: p.name || '未命名專案',
+                            created_by: this.currentRoleName()
+                        }));
+
+                        const { error: projectError } = await this.supabaseClient
+                            .from('projects')
+                            .upsert(projectRows, { onConflict: 'id' });
+
+                        if (projectError) throw projectError;
+
+                        const itemRows = [];
+                        localProjects.forEach(p => {
+                            (p.items || []).forEach(item => {
+                                itemRows.push(this.mapItemToDb(item, p.id));
                             });
+                        });
+
+                        if (itemRows.length) {
+                            const { error: itemError } = await this.supabaseClient
+                                .from('inspection_items')
+                                .upsert(itemRows, { onConflict: 'id' });
+                            if (itemError) throw itemError;
+                        }
+
+                        this.projects = localProjects;
+                        this.cloudProjectSnapshot = {};
+                        this.cloudItemSnapshot = {};
+
+                        localProjects.forEach(p => {
+                            this.cloudProjectSnapshot[p.id] = p.name;
+                            (p.items || []).forEach(item => {
+                                this.cloudItemSnapshot[item.id] = this.cloudItemSignature({
+                                    ...item,
+                                    projectId: p.id
+                                });
+                            });
+                        });
+
+                        localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                        console.log('本地資料已完成首次遷移至 Supabase。');
+                    } catch (err) {
+                        console.error('本地資料遷移至 Supabase 失敗:', err);
+                    }
+                },
+
+                async syncCurrentProjectToSupabase() {
+                    if (!this.supabaseClient || !this.selectedProjectId) return;
+
+                    const project = this.projects.find(p => p.id === this.selectedProjectId);
+                    if (!project) return;
+
+                    try {
+                        if (this.cloudProjectSnapshot[project.id] !== project.name) {
+                            const { error } = await this.supabaseClient
+                                .from('projects')
+                                .upsert({
+                                    id: project.id,
+                                    name: project.name,
+                                    created_by: this.currentRoleName()
+                                }, { onConflict: 'id' });
+
+                            if (error) throw error;
+                            this.cloudProjectSnapshot[project.id] = project.name;
+                        }
+
+                        for (const item of (project.items || [])) {
+                            const signature = this.cloudItemSignature(item);
+                            if (this.cloudItemSnapshot[item.id] !== signature) {
+                                const dbRow = this.mapItemToDb(item, project.id);
+                                const { error } = await this.supabaseClient
+                                    .from('inspection_items')
+                                    .upsert(dbRow, { onConflict: 'id' });
+
+                                if (error) throw error;
+                                this.cloudItemSnapshot[item.id] = signature;
+                            }
                         }
                     } catch (err) {
-                        console.error('同步至 Supabase 雲端失敗:', err);
+                        console.error('目前專案同步失敗:', err);
+                        throw err;
                     }
                 },
 
-                // 處理其他人更新傳來的 Realtime 即時推播
-                handleRealtimePayload(payload) {
-                    if (!payload) return;
-                    if (payload.eventType === 'DELETE' && payload.old) {
-                        this.projects = this.projects.filter(p => p.id !== payload.old.id);
-                        if (this.selectedProjectId === payload.old.id && this.projects.length > 0) {
-                            this.selectedProjectId = this.projects[0].id;
-                            this.currentProjectName = this.projects[0].name;
-                            this.items = this.projects[0].items || [];
-                        }
-                    } else if (payload.new) {
-                        const remoteProj = payload.new;
-                        const pIdx = this.projects.findIndex(p => p.id === remoteProj.id);
-                        if (pIdx !== -1) {
-                            this.projects[pIdx].name = remoteProj.name || this.projects[pIdx].name;
-                            this.projects[pIdx].items = remoteProj.items || [];
-                        } else {
-                            this.projects.push({
-                                id: remoteProj.id,
-                                name: remoteProj.name,
-                                items: remoteProj.items || []
-                            });
-                        }
+                async deleteItemsFromSupabase(ids) {
+                    if (!this.supabaseClient || !ids?.length) return;
 
-                        if (this.selectedProjectId === remoteProj.id) {
-                            this.currentProjectName = remoteProj.name;
-                            this.items = remoteProj.items || [];
+                    const safeIds = ids.map(id => String(id));
+                    const { error } = await this.supabaseClient
+                        .from('inspection_items')
+                        .delete()
+                        .in('id', safeIds);
+
+                    if (error) throw error;
+                    safeIds.forEach(id => delete this.cloudItemSnapshot[id]);
+                },
+
+                async deleteProjectFromSupabase(id) {
+                    if (!this.supabaseClient || !id) return;
+
+                    const childResult = await this.supabaseClient
+                        .from('inspection_items')
+                        .delete()
+                        .eq('project_id', id);
+
+                    if (childResult.error) throw childResult.error;
+
+                    const { error } = await this.supabaseClient
+                        .from('projects')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) throw error;
+
+                    delete this.cloudProjectSnapshot[id];
+                    Object.keys(this.cloudItemSnapshot).forEach(itemId => {
+                        const snapshot = this.cloudItemSnapshot[itemId];
+                        if (snapshot && snapshot.includes(`"project_id":"${id}"`)) {
+                            delete this.cloudItemSnapshot[itemId];
+                        }
+                    });
+                },
+
+                handleRealtimePayload(payload, tableName) {
+                    if (!payload) return;
+
+                    if (tableName === 'projects') {
+                        if (payload.eventType === 'DELETE') {
+                            const deletedId = payload.old?.id;
+                            if (!deletedId) return;
+
+                            this.projects = this.projects.filter(p => p.id !== deletedId);
+                            delete this.cloudProjectSnapshot[deletedId];
+
+                            if (this.selectedProjectId === deletedId) {
+                                const next = this.projects[0];
+                                if (next) {
+                                    this.selectedProjectId = next.id;
+                                    this.currentProjectName = next.name;
+                                    this.items = JSON.parse(JSON.stringify(next.items || []));
+                                } else {
+                                    this.selectedProjectId = '';
+                                    this.currentProjectName = '';
+                                    this.items = [];
+                                }
+                            }
+                        } else {
+                            const row = payload.new;
+                            if (!row?.id) return;
+
+                            const idx = this.projects.findIndex(p => p.id === row.id);
+                            if (idx === -1) {
+                                this.projects.push({ id: row.id, name: row.name || '未命名專案', items: [] });
+                            } else {
+                                this.projects[idx].name = row.name || this.projects[idx].name;
+                            }
+
+                            this.cloudProjectSnapshot[row.id] = row.name || this.cloudProjectSnapshot[row.id];
+
+                            if (this.selectedProjectId === row.id) {
+                                this.currentProjectName = row.name || this.currentProjectName;
+                            }
                         }
                     }
+
+                    if (tableName === 'inspection_items') {
+                        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+                        if (!row?.id) return;
+
+                        const proj = this.projects.find(p => p.id === row.project_id);
+
+                        if (payload.eventType === 'DELETE') {
+                            delete this.cloudItemSnapshot[row.id];
+                            if (proj) {
+                                proj.items = (proj.items || []).filter(i => i.id !== row.id);
+                            }
+                        } else {
+                            const mapped = this.mapDbItem(row);
+                            mapped.projectId = row.project_id;
+                            this.cloudItemSnapshot[row.id] = this.cloudItemSignature(mapped);
+
+                            if (proj) {
+                                const idx = (proj.items || []).findIndex(i => i.id === row.id);
+                                if (idx === -1) proj.items.push(mapped);
+                                else proj.items[idx] = mapped;
+                            }
+                        }
+
+                        const currentProj = this.projects.find(p => p.id === this.selectedProjectId);
+                        if (currentProj) {
+                            this.items = JSON.parse(JSON.stringify(currentProj.items || []));
+                        }
+                    }
+
                     localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
                 },
 
-                // 上傳照片至 Supabase Storage (`inspection-photos` bucket)
-                async uploadImageToCloud(file) {
+                async uploadImageToCloud(file, photoType = 'defect', itemId = 'draft') {
+                    if (!file || !file.type?.startsWith('image/')) {
+                        alert('只允許上傳圖片檔案。');
+                        return null;
+                    }
+
                     if (this.supabaseClient) {
                         try {
-                            const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
-                            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-                            const filePath = `defects/${fileName}`;
+                            const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+                            const safeProjectId = String(this.selectedProjectId || 'unassigned').replace(/[^a-zA-Z0-9_-]/g, '_');
+                            const safeItemId = String(itemId || 'draft').replace(/[^a-zA-Z0-9_-]/g, '_');
+                            const safeType = String(photoType || 'defect').replace(/[^a-zA-Z0-9_-]/g, '_');
+                            const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${ext}`;
+                            const filePath = `${safeProjectId}/${safeType}/${safeItemId}/${fileName}`;
 
                             const { data, error } = await this.supabaseClient.storage
-                                .from('inspection-photos')
-                                .upload(filePath, file, { cacheControl: '3600', upsert: true });
+                                .from(this.supabasePhotoBucket)
+                                .upload(filePath, file, {
+                                    cacheControl: '3600',
+                                    upsert: false,
+                                    contentType: file.type
+                                });
 
-                            if (!error && data) {
-                                const { data: publicUrlData } = this.supabaseClient.storage
-                                    .from('inspection-photos')
-                                    .getPublicUrl(filePath);
-
-                                if (publicUrlData && publicUrlData.publicUrl) {
-                                    return publicUrlData.publicUrl;
-                                }
-                            } else if (error) {
-                                console.warn('Supabase Storage 上傳失敗，降級本地 DataURL:', error.message);
+                            if (error) {
+                                console.error('Supabase Storage 上傳失敗:', error);
+                                alert(`照片上傳失敗：${error.message || 'Storage 權限不足'}`);
+                                return null;
                             }
+
+                            const { data: publicUrlData, error: publicUrlError } = this.supabaseClient.storage
+                                .from(this.supabasePhotoBucket)
+                                .getPublicUrl(data.path);
+
+                            if (publicUrlError) {
+                                console.error('取得照片公開 URL 失敗:', publicUrlError);
+                                alert('照片已上傳，但無法取得公開 URL。請確認 bucket 已設為 Public。');
+                                return null;
+                            }
+
+                            return publicUrlData?.publicUrl || null;
                         } catch (err) {
-                            console.warn('Supabase Storage 例外狀況:', err);
+                            console.error('Supabase Storage 例外狀況:', err);
+                            alert('照片上傳發生例外，請檢查 Storage bucket 與 RLS policy。');
+                            return null;
                         }
                     }
-                    // 無 Supabase 時降級採用 DataURL 處理
+
+                    // 完全未設定 Supabase 時才使用本機 DataURL 備援。
                     return new Promise((resolve) => {
                         const reader = new FileReader();
                         reader.onload = (evt) => resolve(evt.target.result);
+                        reader.onerror = () => resolve(null);
                         reader.readAsDataURL(file);
                     });
                 },
@@ -2231,17 +2527,19 @@
                     localStorage.setItem('hongyuan_system_users', JSON.stringify(this.systemUsers));
                 },
 
-                // 💾 專案儲存機制 (同時寫入 LocalStorage 與 Supabase 雲端)
+                // 💾 本地儲存 + 同步當前專案到 projects / inspection_items
                 saveProjectsToStorage() {
                     const pIndex = this.projects.findIndex(p => p.id === this.selectedProjectId);
                     if (pIndex !== -1) {
                         this.projects[pIndex].items = JSON.parse(JSON.stringify(this.items));
                         this.projects[pIndex].name = this.currentProjectName;
                     }
+
                     localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
-                    
-                    // 同步發送至 Supabase
-                    this.saveToSupabase();
+
+                    if (this.supabaseClient) {
+                        this.enqueueCloudWrite(() => this.syncCurrentProjectToSupabase());
+                    }
                 },
 
                 get filteredItems() {
@@ -2444,7 +2742,7 @@
                     }
 
                     this.currentPage = 1;
-                    this.saveProjectsToStorage();
+                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
                 },
 
                 openEditProjectModal() {
@@ -2516,7 +2814,7 @@
                         this.saveProjectsToStorage();
 
                         if (this.supabaseClient) {
-                            this.supabaseClient.from('projects').delete().eq('id', id).then();
+                            this.enqueueCloudWrite(() => this.deleteProjectFromSupabase(id));
                         }
                     }
                 },
@@ -2549,7 +2847,8 @@
                     const files = e.target.files;
                     if (!files || files.length === 0) return;
                     for (let file of Array.from(files)) {
-                        const photoUrl = await this.uploadImageToCloud(file);
+                        const photoUrl = await this.uploadImageToCloud(file, this.currentPhotoType, this.currentPhotoItem.id || 'draft');
+                        if (!photoUrl) continue;
                         const listKey = this.currentPhotoType + 'Photos';
                         if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
                         this.currentPhotoItem[listKey].push(photoUrl);
@@ -2562,7 +2861,8 @@
                     if (!files || files.length === 0) return;
                     for (let file of Array.from(files)) {
                         if (file.type.startsWith('image/')) {
-                            const photoUrl = await this.uploadImageToCloud(file);
+                            const photoUrl = await this.uploadImageToCloud(file, this.currentPhotoType, this.currentPhotoItem.id || 'draft');
+                            if (!photoUrl) continue;
                             const listKey = this.currentPhotoType + 'Photos';
                             if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
                             this.currentPhotoItem[listKey].push(photoUrl);
@@ -2640,9 +2940,14 @@
 
                 deleteBatchItems() {
                     if (confirm(`確定刪除所選取的 ${this.selectedItemIds.length} 個項目？`)) {
-                        this.items = this.items.filter(i => !this.selectedItemIds.includes(i.id));
+                        const idsToDelete = [...this.selectedItemIds];
+                        this.items = this.items.filter(i => !idsToDelete.includes(i.id));
                         this.selectedItemIds = [];
                         this.saveProjectsToStorage();
+
+                        if (this.supabaseClient && idsToDelete.length) {
+                            this.enqueueCloudWrite(() => this.deleteItemsFromSupabase(idsToDelete));
+                        }
                     }
                 },
 
@@ -2681,8 +2986,8 @@
                     const files = e.target.files;
                     if (!files || files.length === 0) return;
                     for (let file of Array.from(files)) {
-                        const photoUrl = await this.uploadImageToCloud(file);
-                        this.newItemForm.defectPhotos.push(photoUrl);
+                        const photoUrl = await this.uploadImageToCloud(file, 'defect', 'draft');
+                        if (photoUrl) this.newItemForm.defectPhotos.push(photoUrl);
                     }
                 },
 
@@ -2691,8 +2996,8 @@
                     if (!files || files.length === 0) return;
                     for (let file of Array.from(files)) {
                         if (file.type.startsWith('image/')) {
-                            const photoUrl = await this.uploadImageToCloud(file);
-                            this.newItemForm.defectPhotos.push(photoUrl);
+                            const photoUrl = await this.uploadImageToCloud(file, 'defect', 'draft');
+                            if (photoUrl) this.newItemForm.defectPhotos.push(photoUrl);
                         }
                     }
                 },
@@ -2745,8 +3050,14 @@
 
                 deleteItem(id) {
                     if (confirm('確定要刪除此驗屋缺失項目？')) {
-                        this.items = this.items.filter(i => !this.selectedItemIds.includes(i.id) && i.id !== id);
+                        const idsToDelete = [...new Set([...this.selectedItemIds, id])];
+                        this.items = this.items.filter(i => !idsToDelete.includes(i.id));
+                        this.selectedItemIds = [];
                         this.saveProjectsToStorage();
+
+                        if (this.supabaseClient && idsToDelete.length) {
+                            this.enqueueCloudWrite(() => this.deleteItemsFromSupabase(idsToDelete));
+                        }
                     }
                 },
 
