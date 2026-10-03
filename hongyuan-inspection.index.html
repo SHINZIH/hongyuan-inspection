@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>行動化驗屋與修繕追蹤系統</title>
+    <title>行動化驗屋與修繕追蹤系統｜Responsive</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -30,49 +30,245 @@
             background: #cbd5e1;
             border-radius: 4px;
         }
+        /* ===== HouseCheck Responsive UI polish ===== */
+        html, body { min-height: 100%; }
+        body { background: #f4f7fa; }
+        .app-header {
+            background: rgba(255,255,255,.96) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 1px 0 rgba(148,163,184,.20), 0 8px 24px rgba(15,23,42,.035) !important;
+        }
+        .app-main { scroll-behavior: smooth; }
+        .app-main > * .bg-white,
+        .app-main > .bg-white {
+            border-color: #dbe5ee !important;
+            box-shadow: 0 1px 2px rgba(15,23,42,.03), 0 10px 30px rgba(30,64,175,.035) !important;
+        }
+        .app-main input,
+        .app-main select,
+        .app-main textarea {
+            border-color: #d6e1ea;
+            transition: box-shadow .18s ease, border-color .18s ease, background-color .18s ease;
+        }
+        .app-main input:focus,
+        .app-main select:focus,
+        .app-main textarea:focus {
+            border-color: #7aa8c8 !important;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.08) !important;
+        }
+        .app-header-actions > button,
+        .app-header-actions > div > button { min-height: 38px; }
+        .app-sidebar {
+            background: #ffffff !important;
+            color: #60758a !important;
+            border-right: 1px solid #dde7ef;
+            box-shadow: 10px 0 30px rgba(15,23,42,.04) !important;
+        }
+        .app-sidebar .sidebar-brand {
+            border-bottom-color: #e4ecf2 !important;
+        }
+        .app-sidebar .sidebar-brand h2 { color: #20364a !important; }
+        .app-sidebar nav a {
+            border-radius: 12px !important;
+            color: #587085 !important;
+        }
+        .app-sidebar nav a:hover {
+            background: #edf5fa !important;
+            color: #1f648f !important;
+        }
+        .app-sidebar nav a.bg-blue-600 {
+            background: #edf5fa !important;
+            color: #1e6a98 !important;
+            box-shadow: inset 3px 0 0 #2473a4 !important;
+        }
+        .app-sidebar nav a.bg-blue-600 .bg-blue-700 { background: #d7eaf5 !important; color:#1e6a98 !important; }
+        .sidebar-footer {
+            background: #f8fbfd !important;
+            border-top-color: #e4ecf2 !important;
+        }
+        .sidebar-footer .text-emerald-400 { color:#2b7a7a !important; }
+        .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .app-filterbar { align-items: stretch; }
+        .mobile-sidebar-backdrop { background: rgba(15,23,42,.42); backdrop-filter: blur(2px); }
+        .auth-shell { background: radial-gradient(circle at top, #123451 0%, #071321 45%, #02070e 100%) !important; }
+        .auth-card {
+            border: 1px solid rgba(148,163,184,.18) !important;
+            background: rgba(15,28,43,.86) !important;
+            box-shadow: 0 24px 80px rgba(2,8,23,.48) !important;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .auth-card input {
+            border-color: rgba(148,163,184,.22) !important;
+            background: rgba(2,8,23,.55) !important;
+        }
+        .auth-card input:focus { border-color: rgba(96,165,250,.72) !important; box-shadow: 0 0 0 3px rgba(59,130,246,.14) !important; }
+        .auth-mode-tab { transition: all .18s ease; }
+        .auth-mode-tab[aria-selected="true"] { background: rgba(96,165,250,.14); color: #dbeafe; }
+        .role-chip { white-space: nowrap; }
+
+        @media (max-width: 767px) {
+            html, body { overflow: hidden; }
+            .app-main { padding: 12px !important; gap: 12px !important; }
+            .app-header-inner { padding: 10px 12px !important; }
+            .app-header-title { min-width: 0; flex: 1 1 auto; }
+            .app-header-title h1 { font-size: 16px !important; max-width: 38vw; }
+            .app-header-title p { max-width: 50vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .app-header-actions { gap: 6px !important; }
+            .app-header-actions .role-selector { display: none !important; }
+            .app-header-actions .pdf-action span { display: none !important; }
+            .app-header-actions .create-project-action span { display: none !important; }
+            .app-header-actions .logout-action span { display: none !important; }
+            .app-header-actions .pdf-action,
+            .app-header-actions .create-project-action,
+            .app-header-actions .logout-action,
+            .app-header-actions > button { width: 38px; padding-left:0 !important; padding-right:0 !important; justify-content:center; }
+            .app-sidebar { width: min(86vw, 300px) !important; max-width: 300px; }
+            .sidebar-brand { padding: 16px !important; }
+            .app-sidebar nav { padding: 12px !important; }
+            .app-sidebar nav a { padding: 10px 12px !important; font-size: 13px !important; }
+            .sidebar-footer { padding: 12px !important; }
+            .mobile-menu-button {
+                width: 46px !important; height: 46px !important; right: 16px !important; bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+                box-shadow: 0 12px 30px rgba(30,64,175,.22) !important;
+            }
+            .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+            .stats-grid > div { min-width: 0; padding: 14px !important; }
+            .stats-grid h3 { font-size: 27px !important; }
+            .stats-grid p { line-height: 1.35; }
+            .app-filterbar { padding: 10px !important; }
+            .app-filterbar .filter-items {
+                width: 100%;
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto;
+                padding-bottom: 2px;
+                scrollbar-width: thin;
+            }
+            .app-filterbar .filter-items > * { flex: 0 0 auto; }
+            .app-filterbar .filter-items .relative { width: min(74vw, 280px) !important; }
+            .app-filterbar .view-switch { width:100%; justify-content:flex-end; }
+            .app-filterbar .view-switch .inline-flex { margin-left:auto; }
+            .app-main .grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-4 { grid-template-columns: repeat(2,minmax(0,1fr)); }
+            .auth-shell { padding: 14px !important; }
+            .auth-card { padding: 20px !important; border-radius: 22px !important; }
+            .auth-card h2 { font-size: 22px !important; }
+            .auth-card .auth-actions { flex-direction: column; }
+            .auth-card .auth-actions > * { width:100%; }
+            .auth-guest-btn { min-height: 48px; }
+        }
+
+        @media (min-width: 768px) and (max-width: 1100px) {
+            .app-header-inner { padding-left: 16px !important; padding-right: 16px !important; }
+            .app-main { padding: 16px !important; }
+            .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased" x-data="inspectionApp()">
 
-    <!-- 🔒 全頁身分核實封鎖畫面 -->
-    <div x-show="!isSiteAuthenticated" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900 text-slate-100 p-4" style="display: none;">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8 space-y-6 text-center">
-            <div class="w-16 h-16 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-2xl flex items-center justify-center mx-auto text-3xl shadow-lg">
-                <i class="fa-solid fa-shield-halved"></i>
-            </div>
-            <div>
-                <h2 class="text-2xl font-bold text-white tracking-wide">系統身分安全核實</h2>
-                <p class="text-xs text-slate-400 mt-1.5">進入行動化驗屋系統前，請先輸入授權帳戶與密碼</p>
+    <!-- 🔒 登入 / 註冊 / 訪客入口 -->
+    <div x-show="!isSiteAuthenticated" class="auth-shell fixed inset-0 z-[9999] flex items-center justify-center p-4" style="display: none;">
+        <div class="auth-card w-full max-w-md rounded-3xl p-6 sm:p-8 text-slate-100">
+            <div class="text-center">
+                <div class="w-16 h-16 rounded-2xl bg-blue-500/15 text-blue-300 border border-blue-300/20 flex items-center justify-center mx-auto text-3xl shadow-lg">
+                    <i class="fa-solid fa-house-chimney-user"></i>
+                </div>
+                <p class="text-[10px] tracking-[0.24em] text-blue-300/80 mt-5">HOUSECHECK · INSPECTION WORKSPACE</p>
+                <h2 class="text-2xl font-bold text-white tracking-wide mt-2">行動化驗屋與修繕追蹤系統</h2>
+                <p class="text-xs text-slate-400 mt-2">安全登入、訪客瀏覽與新帳號註冊</p>
             </div>
 
-            <div class="space-y-4 text-left">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1">登入 Email</label>
-                    <input type="text" x-model="siteLoginAccount" :disabled="lockoutRemainingSeconds > 0" placeholder="請輸入 Email..." class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1">登入密碼</label>
-                    <input type="password" x-model="siteLoginPassword" :disabled="lockoutRemainingSeconds > 0" @keyup.enter="handleSiteLogin()" placeholder="請輸入密碼..." class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50">
-                </div>
+            <div class="mt-6 grid grid-cols-2 rounded-xl bg-slate-950/45 p-1 border border-slate-700/60">
+                <button type="button" class="auth-mode-tab rounded-lg py-2.5 text-xs font-semibold" :aria-selected="!showRegisterForm" @click="showRegisterForm = false; registerErrorMsg = ''; loginErrorMsg = ''">
+                    <i class="fa-solid fa-right-to-bracket mr-1"></i>帳號登入
+                </button>
+                <button type="button" class="auth-mode-tab rounded-lg py-2.5 text-xs font-semibold text-slate-400" :aria-selected="showRegisterForm" @click="showRegisterForm = true; registerErrorMsg = ''; loginErrorMsg = ''">
+                    <i class="fa-solid fa-user-plus mr-1"></i>註冊帳號
+                </button>
             </div>
 
-            <template x-if="lockoutRemainingSeconds > 0">
-                <div class="bg-red-500/10 border border-red-500/30 text-red-400 p-3.5 rounded-xl text-xs flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-triangle-exclamation text-base shrink-0"></i>
-                    <span>連續輸入錯誤 5 次！已限制登入，請等待 <strong class="font-mono text-sm text-red-300" x-text="formatLockoutTime(lockoutRemainingSeconds)"></strong> 後再試</span>
+            <template x-if="!showRegisterForm">
+                <div class="mt-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">登入 Email</label>
+                        <div class="relative">
+                            <i class="fa-regular fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="email" autocomplete="email" x-model="siteLoginAccount" :disabled="lockoutRemainingSeconds > 0" placeholder="your@email.com" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none disabled:opacity-50">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">登入密碼</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-lock absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="password" autocomplete="current-password" x-model="siteLoginPassword" :disabled="lockoutRemainingSeconds > 0" @keyup.enter="handleSiteLogin()" placeholder="請輸入 Supabase Auth 密碼" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none disabled:opacity-50">
+                        </div>
+                    </div>
+
+                    <template x-if="lockoutRemainingSeconds > 0">
+                        <div class="bg-red-500/10 border border-red-400/20 text-red-300 p-3.5 rounded-xl text-xs flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-triangle-exclamation shrink-0"></i>
+                            <span>連續輸入錯誤 5 次，請等待 <strong class="font-mono text-sm" x-text="formatLockoutTime(lockoutRemainingSeconds)"></strong> 後再試</span>
+                        </div>
+                    </template>
+                    <template x-if="loginErrorMsg && lockoutRemainingSeconds <= 0">
+                        <div class="bg-amber-500/10 border border-amber-400/20 text-amber-200 p-3 rounded-xl text-xs font-medium" x-text="loginErrorMsg"></div>
+                    </template>
+
+                    <div class="auth-actions flex items-center gap-3">
+                        <button @click="handleSiteLogin()" :disabled="lockoutRemainingSeconds > 0 || isLoggingIn" class="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-right-to-bracket mr-1"></i>
+                            <span x-text="lockoutRemainingSeconds > 0 ? '鎖定中...' : (isLoggingIn ? '登入驗證中...' : '登入系統')"></span>
+                        </button>
+                        <button type="button" @click="enterGuestMode()" class="auth-guest-btn flex-1 py-3.5 bg-white/6 hover:bg-white/10 border border-white/10 text-slate-100 font-semibold rounded-xl text-sm transition">
+                            <i class="fa-solid fa-eye mr-1"></i>訪客模式
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 text-center leading-5">訪客模式不需要帳號密碼，僅可瀏覽資料，不能新增、編輯或刪除。</p>
                 </div>
             </template>
 
-            <template x-if="loginErrorMsg && lockoutRemainingSeconds <= 0">
-                <div class="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-3 rounded-xl text-xs font-medium" x-text="loginErrorMsg"></div>
+            <template x-if="showRegisterForm">
+                <div class="mt-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">新帳號 Email</label>
+                        <div class="relative">
+                            <i class="fa-regular fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="email" autocomplete="email" x-model="registerEmail" placeholder="your@email.com" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">新密碼</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-key absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="password" autocomplete="new-password" x-model="registerPassword" placeholder="至少 6 個字元" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">確認新密碼</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-shield-halved absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="password" autocomplete="new-password" x-model="registerPasswordConfirm" @keyup.enter="registerAccount()" placeholder="再次輸入密碼" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none">
+                        </div>
+                    </div>
+
+                    <template x-if="registerErrorMsg">
+                        <div class="bg-amber-500/10 border border-amber-400/20 text-amber-200 p-3 rounded-xl text-xs font-medium" x-text="registerErrorMsg"></div>
+                    </template>
+
+                    <button @click="registerAccount()" :disabled="isRegistering" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-user-plus mr-1"></i><span x-text="isRegistering ? '建立帳號中...' : '建立帳號並開始使用'"></span>
+                    </button>
+                    <button type="button" @click="enterGuestMode()" class="auth-guest-btn w-full py-3 bg-white/6 hover:bg-white/10 border border-white/10 text-slate-100 font-semibold rounded-xl text-sm transition">
+                        <i class="fa-solid fa-eye mr-1"></i>先以訪客模式瀏覽
+                    </button>
+                    <p class="text-[11px] text-slate-500 text-center leading-5">新註冊帳號首次進入系統預設為純觀看者 (Viewer)，管理員可再於 Supabase profiles 調整角色。</p>
+                </div>
             </template>
 
-            <button @click="handleSiteLogin()" :disabled="lockoutRemainingSeconds > 0 || isLoggingIn" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                <span x-text="lockoutRemainingSeconds > 0 ? '系統鎖定中...' : (isLoggingIn ? '登入驗證中...' : '核實身分並進入網站')"></span>
-            </button>
-
-            <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-700/50">
-                帳號與角色由 Supabase Auth 管理；本頁不儲存系統密碼
+            <div class="mt-6 pt-4 border-t border-slate-700/60 text-[11px] text-slate-500 text-center leading-5">
+                Supabase Auth 負責帳號與密碼驗證；此頁不儲存明文登入密碼。
             </div>
         </div>
     </div>
@@ -80,15 +276,17 @@
     <div class="flex h-screen overflow-hidden">
         
         <!-- Mobile Sidebar Toggle Button -->
-        <button @click="mobileSidebarOpen = !mobileSidebarOpen" class="md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center text-xl transition hover:bg-blue-700">
+        <button @click="mobileSidebarOpen = !mobileSidebarOpen" class="mobile-menu-button md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center text-xl transition hover:bg-blue-700">
             <i class="fa-solid" :class="mobileSidebarOpen ? 'fa-xmark' : 'fa-bars'"></i>
         </button>
 
+        <div x-show="mobileSidebarOpen" x-transition.opacity @click="mobileSidebarOpen = false" class="mobile-sidebar-backdrop md:hidden fixed inset-0 z-30" style="display:none;"></div>
+
         <!-- Left Sidebar -->
-        <aside :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
+        <aside class="app-sidebar" :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
             <div>
                 <!-- Brand / Logo -->
-                <div class="px-6 py-5 border-b border-slate-800 flex items-center space-x-3">
+                <div class="sidebar-brand px-6 py-5 border-b border-slate-800 flex items-center space-x-3">
                     <div class="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
                         <i class="fa-solid fa-house-chimney-user"></i>
                     </div>
@@ -131,22 +329,22 @@
                 </nav>
             </div>
 
-            <div class="p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
+            <div class="sidebar-footer p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
                 <div class="flex items-center justify-between text-slate-400">
                     <span>當前模擬身份</span>
                     <span class="text-emerald-400 font-semibold" x-text="currentRoleName()"></span>
                 </div>
-                <p class="text-[11px] text-slate-500">提示：未正確輸入密碼將自動切換為純觀看者模式。</p>
+                <p class="text-[11px] text-slate-500">訪客可免登入瀏覽；註冊帳號首次進入預設為純觀看者。</p>
             </div>
         </aside>
 
         <!-- Main Content Wrapper -->
         <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
             
-            <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-3">
+            <header class="app-header bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
+                <div class="app-header-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-3">
                     
-                    <div class="flex items-center space-x-3">
+                    <div class="app-header-title flex items-center space-x-3">
                         <div class="md:hidden w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold">
                             <i class="fa-solid fa-house-chimney-user"></i>
                         </div>
@@ -163,8 +361,8 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center space-x-3">
-                        <div class="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs">
+                    <div class="app-header-actions flex items-center space-x-3">
+                        <div class="role-selector flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs">
                             <span class="text-slate-500 font-medium"><i class="fa-solid fa-user-shield mr-1"></i>權限角色：</span>
                             <select :value="currentRole" @change="onRoleSelectChange($event)" class="bg-transparent font-bold text-blue-600 focus:outline-none cursor-pointer">
                                 <option value="Owner">最高權限 (Owner)</option>
@@ -185,7 +383,7 @@
                         </div>
 
                         <!-- 📄 匯出 PDF 按鈕 -->
-                        <button @click="openPdfExportModal()" class="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm">
+                        <button @click="openPdfExportModal()" class="pdf-action bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm">
                             <i class="fa-solid fa-file-pdf"></i>
                             <span>匯出 PDF 報告</span>
                         </button>
@@ -199,14 +397,14 @@
 
                         <!-- 🔒 建立新專案按鈕（僅限 Owner 最高權限） -->
                         <template x-if="hasPermission('createProject')">
-                            <button @click="openCreateProjectModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm" title="建立全新專案">
+                            <button @click="openCreateProjectModal()" class="create-project-action bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm" title="建立全新專案">
                                 <i class="fa-solid fa-folder-plus"></i>
                                 <span class="hidden sm:inline">新專案</span>
                             </button>
                         </template>
 
                         <!-- 🔓 Supabase Auth 登出 -->
-                        <button @click="logout()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm" title="登出目前 Supabase 帳號">
+                        <button @click="logout()" class="logout-action bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm" title="登出目前帳號">
                             <i class="fa-solid fa-right-from-bracket"></i>
                             <span class="hidden sm:inline">登出</span>
                         </button>
@@ -214,7 +412,7 @@
                 </div>
             </header>
 
-            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+            <main class="app-main flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
                 <!-- 專案清單管理 Tab 畫面 -->
                 <template x-if="activeTab === 'projects'">
@@ -314,7 +512,7 @@
                 <!-- 自主驗屋初驗清單 Tab 畫面 -->
                 <template x-if="activeTab === 'inspection'">
                     <div class="space-y-6">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
                                 <div>
                                     <p class="text-xs text-slate-500 font-medium">總檢驗項目</p>
@@ -386,8 +584,8 @@
                         </template>
 
                         <!-- 搜尋、多條件篩選與模式切換 -->
-                        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-center gap-4">
-                            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                        <div class="app-filterbar bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-center gap-4">
+                            <div class="filter-items flex flex-wrap items-center gap-3 w-full lg:w-auto">
                                 <div class="relative w-full sm:w-56">
                                     <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                                         <i class="fa-solid fa-magnifying-glass"></i>
@@ -430,7 +628,7 @@
                                 </select>
                             </div>
 
-                            <div class="flex items-center space-x-2 shrink-0">
+                            <div class="view-switch flex items-center space-x-2 shrink-0">
                                 <div class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
                                     <button @click="viewMode = 'table'" class="px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center space-x-1" :class="viewMode === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'">
                                         <i class="fa-solid fa-table-list"></i><span>列表模式</span>
@@ -1761,9 +1959,16 @@
 
                 // 🔒 網站登入核實狀態
                 isSiteAuthenticated: false,
+                isGuestMode: false,
+                showRegisterForm: false,
                 siteLoginAccount: '',
                 siteLoginPassword: '',
                 loginErrorMsg: '',
+                registerEmail: '',
+                registerPassword: '',
+                registerPasswordConfirm: '',
+                registerErrorMsg: '',
+                isRegistering: false,
                 siteAdminAccount: '',
                 siteAdminPassword: '',
                 tempAdminAccount: '',
@@ -1989,6 +2194,81 @@
                     }
                 },
 
+                async enterGuestMode() {
+                    // 訪客不建立 Supabase Auth Session，只進入 Viewer 純觀看狀態。
+                    this.isGuestMode = true;
+                    this.authUser = null;
+                    this.authRole = 'Viewer';
+                    this.currentRole = 'Viewer';
+                    this.isSiteAuthenticated = true;
+                    this.activeTab = 'inspection';
+                    this.mobileSidebarOpen = false;
+                    this.siteLoginPassword = '';
+                    this.loginErrorMsg = '';
+                    this.registerErrorMsg = '';
+                },
+
+                async registerAccount() {
+                    if (this.isRegistering) return;
+                    const email = (this.registerEmail || '').trim();
+                    const password = this.registerPassword || '';
+                    const confirm = this.registerPasswordConfirm || '';
+
+                    if (!email || !password || !confirm) {
+                        this.registerErrorMsg = '請完整填寫 Email、密碼與確認密碼。';
+                        return;
+                    }
+                    if (password.length < 6) {
+                        this.registerErrorMsg = '密碼至少需要 6 個字元。';
+                        return;
+                    }
+                    if (password !== confirm) {
+                        this.registerErrorMsg = '兩次輸入的密碼不一致。';
+                        return;
+                    }
+
+                    this.registerErrorMsg = '';
+                    this.isRegistering = true;
+                    try {
+                        if (!this.supabaseClient) {
+                            if (!this.supabaseUrl || !this.supabaseKey) {
+                                throw new Error('尚未設定 Supabase Project URL / Anon Key。');
+                            }
+                            this.initSupabase();
+                            if (!this.supabaseClient) throw new Error('Supabase 尚未完成初始化，請重新整理後再試。');
+                        }
+
+                        const { data, error } = await this.supabaseClient.auth.signUp({
+                            email,
+                            password,
+                            options: {
+                                data: { role: 'Viewer' }
+                            }
+                        });
+                        if (error) throw error;
+
+                        this.registerPassword = '';
+                        this.registerPasswordConfirm = '';
+                        this.siteLoginAccount = email;
+
+                        if (data?.session && data?.user) {
+                            // 首次註冊即使沒有 profiles，也會在 handleAuthSession 中採最低權限 Viewer。
+                            await this.handleAuthSession(data.session);
+                            this.showRegisterForm = false;
+                            this.registerErrorMsg = '';
+                        } else {
+                            this.showRegisterForm = false;
+                            this.registerErrorMsg = '註冊成功。若 Supabase 啟用 Email 驗證，請先完成信箱驗證，再使用新帳號登入。首次登入預設為純觀看者。';
+                            this.loginErrorMsg = this.registerErrorMsg;
+                        }
+                    } catch (err) {
+                        console.error('Supabase 註冊失敗:', err);
+                        this.registerErrorMsg = err?.message || '註冊失敗，請確認 Email 與 Supabase Auth 設定。';
+                    } finally {
+                        this.isRegistering = false;
+                    }
+                },
+
                 async handleSiteLogin() {
                     if (this.lockoutRemainingSeconds > 0 || this.isLoggingIn) return;
 
@@ -2057,6 +2337,7 @@
 
                 async handleAuthSession(session) {
                     this.authUser = session?.user || null;
+                    this.isGuestMode = false;
                     if (!session?.user) {
                         this.isSiteAuthenticated = false;
                         this.currentRole = 'Viewer';
@@ -2069,8 +2350,10 @@
                             .from('profiles')
                             .select('role,display_name')
                             .eq('id', session.user.id)
-                            .single();
+                            .maybeSingle();
                         if (error) throw error;
+
+                        // 找不到 profiles 時，採最低權限 Viewer，讓新註冊帳號仍可正常進入系統。
                         const role = ['Owner','Admin','Inspector','Vendor','Viewer'].includes(data?.role) ? data.role : 'Viewer';
                         this.authRole = role;
                         this.currentRole = role;
@@ -2078,19 +2361,28 @@
                         this.loginErrorMsg = '';
                         this.fetchDataFromSupabase();
                     } catch (err) {
-                        console.error('讀取使用者角色失敗:', err);
-                        await this.supabaseClient.auth.signOut();
-                        this.isSiteAuthenticated = false;
-                        this.loginErrorMsg = '帳號已登入，但尚未設定系統角色。請由管理者在 Supabase profiles 設定角色。';
+                        // 角色查詢異常時也不提升權限：先以 Viewer 進入，避免新使用者被卡在登入畫面。
+                        console.error('讀取使用者角色失敗，改以 Viewer 進入:', err);
+                        this.authRole = 'Viewer';
+                        this.currentRole = 'Viewer';
+                        this.isSiteAuthenticated = true;
+                        this.loginErrorMsg = '';
+                        this.fetchDataFromSupabase();
                     }
                 },
 
                 async logout() {
-                    if (this.supabaseClient) await this.supabaseClient.auth.signOut();
+                    if (this.supabaseClient && !this.isGuestMode) await this.supabaseClient.auth.signOut();
+                    this.isGuestMode = false;
                     this.isSiteAuthenticated = false;
                     this.authUser = null;
                     this.currentRole = 'Viewer';
                     this.authRole = 'Viewer';
+                    this.siteLoginPassword = '';
+                    this.registerPassword = '';
+                    this.registerPasswordConfirm = '';
+                    this.loginErrorMsg = '';
+                    this.registerErrorMsg = '';
                 },
 
                 saveSupabaseConfig() {
