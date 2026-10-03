@@ -204,6 +204,12 @@
                                 <span class="hidden sm:inline">新專案</span>
                             </button>
                         </template>
+
+                        <!-- 🔓 Supabase Auth 登出 -->
+                        <button @click="logout()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 shadow-sm" title="登出目前 Supabase 帳號">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span class="hidden sm:inline">登出</span>
+                        </button>
                     </div>
                 </div>
             </header>
@@ -810,7 +816,7 @@
                             </div>
                             <div>
                                 <h3 class="text-lg font-bold text-slate-800">【系統參數設定】</h3>
-                                <p class="text-xs text-slate-500">修改系統登入最高權限帳密、多用戶帳號管理（最多20組）、角色名單與個人密碼設定。</p>
+                                <p class="text-xs text-slate-500">管理 Supabase 雲端連線參數與系統設定；使用者帳號、密碼與角色由 Supabase Auth / profiles 管理。</p>
                             </div>
                         </div>
 
@@ -2651,21 +2657,14 @@
                 },
 
                 checkSettingsAccess() {
-                    this.targetPendingRole = 'Owner';
-                    this.passwordPromptTitle = '進入【系統參數設定】需驗證 Owner 密碼';
-                    this.enteredPassword = '';
-                    this.showPasswordModalFlag = true;
-                    const origVerify = this.verifyPassword;
-                    this.verifyPassword = () => {
-                        if (this.enteredPassword === this.ownerPassword || this.enteredPassword === this.siteAdminPassword) {
-                            this.activeTab = 'settings';
-                            this.showPasswordModalFlag = false;
-                        } else {
-                            alert('密碼錯誤！');
-                            this.showPasswordModalFlag = false;
-                        }
-                        this.verifyPassword = origVerify;
-                    };
+                    // Supabase Auth 已完成身分驗證；系統參數設定直接依 profiles.role 判斷，
+                    // 不再使用前端 ownerPassword / siteAdminPassword（這些欄位沒有可靠的預設值）。
+                    if (this.authRole === 'Owner') {
+                        this.activeTab = 'settings';
+                        this.showPasswordModalFlag = false;
+                        return;
+                    }
+                    alert('只有 Owner（最高權限）帳號可以進入【系統參數設定】。請使用 Supabase Auth 的 Owner 帳號登入。');
                 },
 
                 openPdfExportModal() {
