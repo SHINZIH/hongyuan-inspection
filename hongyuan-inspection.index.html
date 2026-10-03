@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>行動化驗屋與修繕追蹤系統｜Responsive</title>
+    <title>行動化驗屋與修繕追蹤系統｜Responsive v5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -109,53 +109,190 @@
         .role-chip { white-space: nowrap; }
 
         @media (max-width: 767px) {
-            html, body { overflow: hidden; }
-            .app-main { padding: 12px !important; gap: 12px !important; }
-            .app-header-inner { padding: 10px 12px !important; }
-            .app-header-title { min-width: 0; flex: 1 1 auto; }
-            .app-header-title h1 { font-size: 16px !important; max-width: 38vw; }
-            .app-header-title p { max-width: 50vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .app-header-actions { gap: 6px !important; }
+            html, body { width: 100%; height: 100%; overflow: hidden; }
+            body { min-width: 0; }
+            .app-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                bottom: 0 !important;
+                width: min(82vw, 300px) !important;
+                max-width: 300px !important;
+                z-index: 50 !important;
+                transform: translateX(-100%);
+            }
+            .app-sidebar.translate-x-0 { transform: translateX(0); }
+            .app-sidebar.-translate-x-full { transform: translateX(-100%); }
+            .app-sidebar nav a { padding: 10px 12px !important; font-size: 13px !important; }
+            .sidebar-brand { padding: 16px !important; }
+            .sidebar-footer { padding: 12px !important; }
+
+            /* 主畫面永遠吃滿手機可用寬度，不再被側欄擠壓 */
+            body > .flex.h-screen.overflow-hidden { width: 100% !important; max-width: 100% !important; }
+            body > .flex.h-screen.overflow-hidden > .flex-1 {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+            }
+
+            .app-header { width: 100% !important; }
+            .app-header-inner {
+                width: 100% !important;
+                max-width: none !important;
+                padding: 10px 12px !important;
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                align-items: center !important;
+                gap: 8px !important;
+                flex-wrap: nowrap !important;
+            }
+            .app-header-title {
+                min-width: 0 !important;
+                width: 100% !important;
+                overflow: hidden !important;
+            }
+            .app-header-title h1 {
+                max-width: 100% !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                font-size: clamp(16px, 5vw, 20px) !important;
+                line-height: 1.25 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .app-header-title p {
+                display: block !important;
+                max-width: 100% !important;
+                font-size: 11px !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .app-header-actions {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+                gap: 5px !important;
+                flex-wrap: nowrap !important;
+                min-width: 0 !important;
+                width: auto !important;
+            }
             .app-header-actions .role-selector { display: none !important; }
-            .app-header-actions .pdf-action span { display: none !important; }
-            .app-header-actions .create-project-action span { display: none !important; }
+            .app-header-actions .pdf-action span,
+            .app-header-actions .create-project-action span,
             .app-header-actions .logout-action span { display: none !important; }
             .app-header-actions .pdf-action,
             .app-header-actions .create-project-action,
             .app-header-actions .logout-action,
-            .app-header-actions > button { width: 38px; padding-left:0 !important; padding-right:0 !important; justify-content:center; }
-            .app-sidebar { width: min(86vw, 300px) !important; max-width: 300px; }
-            .sidebar-brand { padding: 16px !important; }
-            .app-sidebar nav { padding: 12px !important; }
-            .app-sidebar nav a { padding: 10px 12px !important; font-size: 13px !important; }
-            .sidebar-footer { padding: 12px !important; }
+            .app-header-actions > button {
+                width: 36px !important;
+                min-width: 36px !important;
+                height: 36px !important;
+                min-height: 36px !important;
+                padding: 0 !important;
+                justify-content: center !important;
+                align-items: center !important;
+                border-radius: 9px !important;
+            }
+
+            .app-main {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                padding: 12px !important;
+                gap: 12px !important;
+                overflow-x: hidden !important;
+                box-sizing: border-box !important;
+            }
+            .app-main > * { min-width: 0 !important; max-width: 100% !important; }
+
+            /* 卡片兩欄，但保持每欄等寬 */
+            .stats-grid {
+                width: 100% !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 10px !important;
+            }
+            .stats-grid > div {
+                min-width: 0 !important;
+                width: 100% !important;
+                padding: 12px !important;
+                overflow: hidden !important;
+            }
+            .stats-grid h3 { font-size: 26px !important; line-height: 1 !important; }
+            .stats-grid p { font-size: 11px !important; line-height: 1.35 !important; }
+
+            /* 篩選器改為「搜尋一行 + 篩選橫向滑動 + 模式切換」 */
+            .app-filterbar {
+                width: 100% !important;
+                padding: 10px !important;
+                align-items: stretch !important;
+                gap: 9px !important;
+                box-sizing: border-box !important;
+            }
+            .app-filterbar .filter-items {
+                width: 100% !important;
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) !important;
+                gap: 8px !important;
+                overflow: visible !important;
+                padding: 0 !important;
+            }
+            .app-filterbar .filter-items .relative {
+                width: 100% !important;
+                min-width: 0 !important;
+                grid-column: 1 !important;
+            }
+            .app-filterbar .filter-items > select {
+                width: 100% !important;
+                min-width: 0 !important;
+                height: 38px !important;
+            }
+            .app-filterbar .view-switch {
+                width: 100% !important;
+                justify-content: stretch !important;
+            }
+            .app-filterbar .view-switch .inline-flex {
+                width: 100% !important;
+            }
+            .app-filterbar .view-switch button {
+                flex: 1 1 0 !important;
+                justify-content: center !important;
+                min-height: 38px !important;
+            }
+
+            /* 表格仍可左右滑動，但外層不會把整頁撐寬 */
+            .app-main .overflow-x-auto {
+                max-width: 100% !important;
+                width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+            .app-main table { min-width: 760px !important; }
+
             .mobile-menu-button {
-                width: 46px !important; height: 46px !important; right: 16px !important; bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+                width: 46px !important;
+                height: 46px !important;
+                right: 16px !important;
+                bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+                z-index: 60 !important;
                 box-shadow: 0 12px 30px rgba(30,64,175,.22) !important;
             }
-            .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
-            .stats-grid > div { min-width: 0; padding: 14px !important; }
-            .stats-grid h3 { font-size: 27px !important; }
-            .stats-grid p { line-height: 1.35; }
-            .app-filterbar { padding: 10px !important; }
-            .app-filterbar .filter-items {
-                width: 100%;
-                display: flex !important;
-                flex-wrap: nowrap !important;
-                overflow-x: auto;
-                padding-bottom: 2px;
-                scrollbar-width: thin;
-            }
-            .app-filterbar .filter-items > * { flex: 0 0 auto; }
-            .app-filterbar .filter-items .relative { width: min(74vw, 280px) !important; }
-            .app-filterbar .view-switch { width:100%; justify-content:flex-end; }
-            .app-filterbar .view-switch .inline-flex { margin-left:auto; }
-            .app-main .grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-4 { grid-template-columns: repeat(2,minmax(0,1fr)); }
+            .mobile-sidebar-backdrop { z-index: 45 !important; }
+
+            /* 其他區塊避免固定寬度在窄螢幕爆版 */
+            .app-main .max-w-4xl,
+            .app-main .max-w-5xl,
+            .app-main .max-w-3xl,
+            .app-main .max-w-2xl,
+            .app-main .max-w-xl { max-width: 100% !important; }
+
             .auth-shell { padding: 14px !important; }
             .auth-card { padding: 20px !important; border-radius: 22px !important; }
             .auth-card h2 { font-size: 22px !important; }
             .auth-card .auth-actions { flex-direction: column; }
-            .auth-card .auth-actions > * { width:100%; }
+            .auth-card .auth-actions > * { width: 100%; }
             .auth-guest-btn { min-height: 48px; }
         }
 
@@ -164,6 +301,268 @@
             .app-main { padding: 16px !important; }
             .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
         }
+
+        /* ===== v5 mobile / small-screen hardening ===== */
+        @media (max-width: 1100px), (pointer: coarse) and (hover: none) {
+            html, body {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                height: 100% !important;
+                overflow: hidden !important;
+                margin: 0 !important;
+            }
+            body > .flex.h-screen.overflow-hidden {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: 100dvh !important;
+                max-height: 100dvh !important;
+                min-width: 0 !important;
+                display: flex !important;
+                overflow: hidden !important;
+            }
+            body > .flex.h-screen.overflow-hidden > aside.app-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                bottom: 0 !important;
+                width: min(86vw, 304px) !important;
+                max-width: 304px !important;
+                height: 100dvh !important;
+                margin: 0 !important;
+                z-index: 70 !important;
+                transform: translateX(-105%) !important;
+                transition: transform .22s ease !important;
+            }
+            body > .flex.h-screen.overflow-hidden > aside.app-sidebar.translate-x-0 {
+                transform: translateX(0) !important;
+            }
+            body > .flex.h-screen.overflow-hidden > aside.app-sidebar.-translate-x-full {
+                transform: translateX(-105%) !important;
+            }
+            body > .flex.h-screen.overflow-hidden > div.flex-1 {
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                height: 100dvh !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+            }
+            .mobile-menu-button {
+                display: flex !important;
+                width: 48px !important;
+                height: 48px !important;
+                min-width: 48px !important;
+                min-height: 48px !important;
+                right: 14px !important;
+                bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+                z-index: 80 !important;
+            }
+            .mobile-sidebar-backdrop {
+                display: block !important;
+                position: fixed !important;
+                inset: 0 !important;
+                z-index: 60 !important;
+            }
+            .app-header {
+                width: 100% !important;
+                flex: 0 0 auto !important;
+            }
+            .app-header-inner {
+                width: 100% !important;
+                max-width: none !important;
+                box-sizing: border-box !important;
+                padding: 10px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)) !important;
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                gap: 8px !important;
+            }
+            .app-header-title {
+                min-width: 0 !important;
+                width: 100% !important;
+                overflow: hidden !important;
+            }
+            .app-header-title h1 {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                font-size: clamp(17px, 4.8vw, 21px) !important;
+                line-height: 1.25 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .app-header-title p {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                font-size: 11px !important;
+                line-height: 1.35 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .app-header-actions {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+                gap: 5px !important;
+                min-width: 0 !important;
+            }
+            .app-header-actions .role-selector,
+            .app-header-actions .pdf-action span,
+            .app-header-actions .create-project-action span,
+            .app-header-actions .logout-action span {
+                display: none !important;
+            }
+            .app-header-actions .pdf-action,
+            .app-header-actions .create-project-action,
+            .app-header-actions .logout-action,
+            .app-header-actions > button {
+                width: 38px !important;
+                min-width: 38px !important;
+                height: 38px !important;
+                min-height: 38px !important;
+                padding: 0 !important;
+                justify-content: center !important;
+                align-items: center !important;
+                border-radius: 10px !important;
+            }
+            .app-main {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                height: auto !important;
+                box-sizing: border-box !important;
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+                padding: 12px !important;
+                padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+            }
+            .app-main > * {
+                min-width: 0 !important;
+                max-width: 100% !important;
+            }
+            .app-main .grid {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
+            .app-main .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 10px !important;
+            }
+            .app-main .stats-grid > div {
+                width: 100% !important;
+                min-width: 0 !important;
+                padding: 12px !important;
+                overflow: hidden !important;
+            }
+            .app-main .stats-grid h3 {
+                font-size: clamp(23px, 7vw, 30px) !important;
+                line-height: 1 !important;
+            }
+            .app-main .stats-grid p {
+                font-size: 11px !important;
+                line-height: 1.35 !important;
+            }
+            .app-filterbar {
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                padding: 10px !important;
+                gap: 9px !important;
+            }
+            .app-filterbar .filter-items {
+                width: 100% !important;
+                display: grid !important;
+                grid-template-columns: minmax(0,1fr) !important;
+                gap: 8px !important;
+                overflow: visible !important;
+            }
+            .app-filterbar .filter-items .relative,
+            .app-filterbar .filter-items > select {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+            }
+            .app-filterbar .view-switch,
+            .app-filterbar .view-switch .inline-flex {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            .app-filterbar .view-switch button {
+                flex: 1 1 0 !important;
+                min-height: 40px !important;
+                justify-content: center !important;
+            }
+            .app-main .overflow-x-auto {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+            .app-main table { min-width: 780px !important; }
+            .app-main .max-w-4xl,
+            .app-main .max-w-5xl,
+            .app-main .max-w-3xl,
+            .app-main .max-w-2xl,
+            .app-main .max-w-xl {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            .sidebar-footer {
+                padding-bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+            }
+            .auth-shell {
+                overflow-y: auto !important;
+                align-items: flex-start !important;
+                padding-top: max(18px, env(safe-area-inset-top)) !important;
+                padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+            }
+            .auth-card {
+                width: min(100%, 440px) !important;
+                margin: auto !important;
+            }
+            .app-main input,
+            .app-main select,
+            .app-main textarea {
+                font-size: 16px !important;
+            }
+            /* 新增缺失照片：在手機上提供更大的預覽區 */
+            .new-item-photo-dropzone {
+                min-height: 132px !important;
+            }
+            .new-item-photo-thumb {
+                width: 118px !important;
+                height: 92px !important;
+            }
+        }
+
+        @media (min-width: 768px) and (max-width: 1100px) {
+            .app-header-inner { padding-left: 16px !important; padding-right: 16px !important; }
+            .app-main { padding: 16px !important; }
+            .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+        }
+
+        @media (max-width: 390px), (pointer: coarse) and (max-width: 430px) {
+            .app-main { padding-left: 10px !important; padding-right: 10px !important; }
+            .app-main .stats-grid { gap: 8px !important; }
+            .app-main .stats-grid > div { padding: 10px !important; }
+            .app-header-inner { padding-left: 10px !important; padding-right: 10px !important; }
+            .app-header-actions .pdf-action,
+            .app-header-actions .create-project-action,
+            .app-header-actions .logout-action,
+            .app-header-actions > button {
+                width: 34px !important;
+                min-width: 34px !important;
+                height: 34px !important;
+                min-height: 34px !important;
+            }
+        }
+
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased" x-data="inspectionApp()">
@@ -216,16 +615,26 @@
                         <div class="bg-amber-500/10 border border-amber-400/20 text-amber-200 p-3 rounded-xl text-xs font-medium" x-text="loginErrorMsg"></div>
                     </template>
 
+                    <div class="pt-1">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">訪客邀請碼</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-ticket absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="text" inputmode="text" autocomplete="off" maxlength="20" x-model="guestInviteInput" @keyup.enter="enterGuestMode()" placeholder="輸入訪客邀請碼" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none">
+                        </div>
+                    </div>
                     <div class="auth-actions flex items-center gap-3">
                         <button @click="handleSiteLogin()" :disabled="lockoutRemainingSeconds > 0 || isLoggingIn" class="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                             <i class="fa-solid fa-right-to-bracket mr-1"></i>
                             <span x-text="lockoutRemainingSeconds > 0 ? '鎖定中...' : (isLoggingIn ? '登入驗證中...' : '登入系統')"></span>
                         </button>
                         <button type="button" @click="enterGuestMode()" class="auth-guest-btn flex-1 py-3.5 bg-white/6 hover:bg-white/10 border border-white/10 text-slate-100 font-semibold rounded-xl text-sm transition">
-                            <i class="fa-solid fa-eye mr-1"></i>訪客模式
+                            <i class="fa-solid fa-eye mr-1"></i>驗證邀請碼並訪客瀏覽
                         </button>
                     </div>
-                    <p class="text-[11px] text-slate-500 text-center leading-5">訪客模式不需要帳號密碼，僅可瀏覽資料，不能新增、編輯或刪除。</p>
+                    <template x-if="guestInviteErrorMsg">
+                        <div class="bg-red-500/10 border border-red-400/20 text-red-200 p-3 rounded-xl text-xs font-medium" x-text="guestInviteErrorMsg"></div>
+                    </template>
+                    <p class="text-[11px] text-slate-500 text-center leading-5">訪客模式需輸入有效邀請碼，僅可瀏覽資料，不能新增、編輯或刪除。</p>
                 </div>
             </template>
 
@@ -260,9 +669,19 @@
                     <button @click="registerAccount()" :disabled="isRegistering" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fa-solid fa-user-plus mr-1"></i><span x-text="isRegistering ? '建立帳號中...' : '建立帳號並開始使用'"></span>
                     </button>
+                    <div class="pt-1">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">訪客邀請碼</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-ticket absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                            <input type="text" inputmode="text" autocomplete="off" maxlength="20" x-model="guestInviteInput" @keyup.enter="enterGuestMode()" placeholder="需要訪客瀏覽時請輸入邀請碼" class="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white focus:outline-none">
+                        </div>
+                    </div>
                     <button type="button" @click="enterGuestMode()" class="auth-guest-btn w-full py-3 bg-white/6 hover:bg-white/10 border border-white/10 text-slate-100 font-semibold rounded-xl text-sm transition">
-                        <i class="fa-solid fa-eye mr-1"></i>先以訪客模式瀏覽
+                        <i class="fa-solid fa-eye mr-1"></i>驗證邀請碼並以訪客瀏覽
                     </button>
+                    <template x-if="guestInviteErrorMsg">
+                        <div class="bg-red-500/10 border border-red-400/20 text-red-200 p-3 rounded-xl text-xs font-medium" x-text="guestInviteErrorMsg"></div>
+                    </template>
                     <p class="text-[11px] text-slate-500 text-center leading-5">新註冊帳號首次進入系統預設為純觀看者 (Viewer)，管理員可再於 Supabase profiles 調整角色。</p>
                 </div>
             </template>
@@ -283,7 +702,7 @@
         <div x-show="mobileSidebarOpen" x-transition.opacity @click="mobileSidebarOpen = false" class="mobile-sidebar-backdrop md:hidden fixed inset-0 z-30" style="display:none;"></div>
 
         <!-- Left Sidebar -->
-        <aside class="app-sidebar" :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
+        <aside :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="app-sidebar fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
             <div>
                 <!-- Brand / Logo -->
                 <div class="sidebar-brand px-6 py-5 border-b border-slate-800 flex items-center space-x-3">
@@ -314,7 +733,7 @@
                         <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'projects' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="projects.length"></span>
                     </a>
 
-                    <a href="#" @click.prevent="activeTab = 'analytics'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'analytics' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                    <a href="#" @click.prevent="analyticsProjectId = selectedProjectId; activeTab = 'analytics'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'analytics' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
                         <div class="flex items-center space-x-3">
                             <i class="fa-solid fa-chart-pie w-5 text-center"></i>
                             <span>修繕數據統計</span>
@@ -329,12 +748,12 @@
                 </nav>
             </div>
 
-            <div class="sidebar-footer p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
-                <div class="flex items-center justify-between text-slate-400">
+            <div class="sidebar-footer mt-auto p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
+                <div class="flex items-center justify-between gap-2 text-slate-400">
                     <span>當前模擬身份</span>
-                    <span class="text-emerald-400 font-semibold" x-text="currentRoleName()"></span>
+                    <span class="text-emerald-400 font-semibold text-right" x-text="currentRoleName()"></span>
                 </div>
-                <p class="text-[11px] text-slate-500">訪客可免登入瀏覽；註冊帳號首次進入預設為純觀看者。</p>
+                <p class="text-[11px] text-slate-500 leading-5">訪客需輸入邀請碼後才能瀏覽；註冊帳號首次進入預設為純觀看者。</p>
             </div>
         </aside>
 
@@ -1019,6 +1438,28 @@
                         </div>
 
                         <div class="space-y-6 text-sm">
+
+                            <!-- 🔑 訪客邀請碼設定 -->
+                            <div class="p-5 bg-amber-50/70 rounded-xl border border-amber-200 space-y-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                            <i class="fa-solid fa-ticket text-amber-600"></i>
+                                            <span>訪客模式邀請碼</span>
+                                        </h4>
+                                        <p class="text-xs text-slate-500 mt-1">訪客模式現在必須輸入邀請碼才能進入；邀請碼可包含英文、數字與符號，最多 20 字。</p>
+                                    </div>
+                                    <span class="text-[11px] px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-700 font-semibold shrink-0">Owner 可修改</span>
+                                </div>
+                                <div class="flex flex-col sm:flex-row gap-3">
+                                    <div class="relative flex-1">
+                                        <i class="fa-solid fa-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                        <input type="text" maxlength="20" inputmode="text" autocomplete="off" x-model="guestInviteCode" @input="guestInviteCode = guestInviteCode.replace(/[^\x21-\x7E]/g, '').slice(0, 20)" class="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white font-mono" placeholder="訪客邀請碼">
+                                    </div>
+                                    <button @click="saveGuestInviteCode()" class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存邀請碼</button>
+                                </div>
+                                <p class="text-[11px] text-slate-400">預設邀請碼：86392672。變更後請將新邀請碼提供給需要進入訪客模式的人員。</p>
+                            </div>
                             
                             <!-- Supabase 雲端對接參數設定區塊 -->
                             <div class="p-5 bg-blue-50/50 rounded-xl border border-blue-200 space-y-4">
@@ -1059,7 +1500,7 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center justify-between pt-1">
-                                    <p class="text-xs text-slate-400">預設帳號：<span class="font-mono text-slate-600 font-bold">Admin8866</span> ｜ 預設密碼：<span class="font-mono text-slate-600 font-bold">Admin86392672@</span></p>
+                                    <p class="text-xs text-slate-400">帳號與密碼現在由 Supabase Authentication 管理，本頁不顯示或保存預設密碼。</p>
                                     <button @click="saveAdminCredentials()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存最高權限帳密</button>
                                 </div>
                             </div>
@@ -1127,7 +1568,7 @@
                                     <input type="password" x-model="tempOwnerPassword" class="px-3 py-2 border border-slate-300 rounded-lg w-64 text-sm bg-white" placeholder="輸入新密碼">
                                     <button @click="saveOwnerPassword()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-xs shadow-sm">更新密碼</button>
                                 </div>
-                                <p class="text-xs text-slate-400">當前最高權限預設密碼：86392672</p>
+                                <p class="text-xs text-slate-400">Owner 密碼請在 Supabase Authentication 管理；此頁不保存明文密碼。</p>
                             </div>
 
                             <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
@@ -1606,21 +2047,27 @@
             </div>
 
             <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-                <div class="lg:col-span-8 bg-slate-900 p-3 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[250px] sm:min-h-[400px]">
+                <div class="lg:col-span-8 bg-slate-900 p-2 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[320px] sm:min-h-[480px]">
 
                     <div class="relative w-full h-full flex flex-col items-center justify-center select-none border-2 border-dashed border-slate-700 rounded-xl p-2"
-                         @dragover.prevent @drop.prevent="handleFileDrop($event)">
+                         tabindex="0"
+                         @dragover.prevent @drop.prevent="handleFileDrop($event)"
+                         @paste.prevent.stop="handlePhotoModalPaste($event)">
                         
                         <template x-if="currentPhotoList().length > 0">
                             <div class="flex flex-col items-center w-full h-full justify-center space-y-2">
-                                <div class="relative inline-block max-w-full max-h-[35vh] sm:max-h-[50vh]">
-                                    <img :src="currentPhotoList()[activePhotoIndex]" id="previewImageElement" class="block max-h-[35vh] sm:max-h-[50vh] max-w-full rounded shadow-lg object-contain mx-auto" alt="照片檢視">
+                                <div class="relative w-full max-w-full max-h-[72vh] sm:max-h-[70vh] flex items-center justify-center">
+                                    <img :src="getPhotoUrl(currentPhotoList()[activePhotoIndex])"
+                                         id="previewImageElement"
+                                         class="block w-auto max-w-full max-h-[70vh] sm:max-h-[68vh] lg:max-h-[72vh] rounded-xl shadow-2xl object-contain mx-auto cursor-zoom-in"
+                                         @click="openOriginalImageView()"
+                                         alt="照片檢視">
                                 </div>
 
                                 <div class="flex items-center space-x-2 overflow-x-auto max-w-full py-1">
                                     <template x-for="(pUrl, pIdx) in currentPhotoList()" :key="pIdx">
-                                        <div @click="activePhotoIndex = pIdx" class="w-12 h-12 rounded-lg overflow-hidden border-2 cursor-pointer shrink-0 transition" :class="activePhotoIndex === pIdx ? 'border-blue-500 scale-105 shadow-md' : 'border-slate-700 opacity-60'">
-                                            <img :src="getPhotoUrl(pUrl)" class="w-full h-full object-cover">
+                                        <div @click="activePhotoIndex = pIdx" class="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-xl overflow-hidden border-2 cursor-pointer shrink-0 transition" :class="activePhotoIndex === pIdx ? 'border-blue-500 scale-105 shadow-md' : 'border-slate-700 opacity-60'">
+                                            <img :src="getPhotoUrl(pUrl)" x-init="resolvePhotoUrl(pUrl)" class="w-full h-full object-cover">
                                         </div>
                                     </template>
                                 </div>
@@ -1749,8 +2196,10 @@
 
                     <div class="md:col-span-2 space-y-2 pt-2 border-t border-slate-100">
                         <label class="block text-sm font-semibold text-slate-700">上傳缺失照片</label>
-                        <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 transition hover:bg-slate-100"
-                             @dragover.prevent @drop.prevent="handleNewItemDrop($event)">
+                        <div class="new-item-photo-dropzone border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 transition hover:bg-slate-100"
+                             tabindex="0"
+                             @dragover.prevent @drop.prevent="handleNewItemDrop($event)"
+                             @paste.prevent.stop="handleNewItemPaste($event)">
                              
                             <div class="flex space-x-3 mb-3">
                                 <label class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
@@ -1762,13 +2211,13 @@
                                     <input type="file" accept="image/*" multiple class="hidden" @change="uploadNewItemPhotos($event)">
                                 </label>
                             </div>
-                            <p class="text-xs text-slate-400">或將照片拖曳至此處新增</p>
+                            <p class="text-xs text-slate-400 leading-5">或將照片拖曳至此處新增，也可直接在此處貼上剪貼簿圖片</p>
                         </div>
                         
                         <template x-if="newItemForm.defectPhotos.length > 0">
                             <div class="flex flex-wrap gap-3 mt-3">
                                 <template x-for="(pUrl, pIdx) in newItemForm.defectPhotos" :key="pIdx">
-                                    <div class="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shadow-sm group">
+                                    <div class="new-item-photo-thumb relative w-28 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-100">
                                         <img :src="getPhotoUrl(pUrl)" class="w-full h-full object-cover">
                                         <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer" @click="removeNewItemPhoto(pIdx)">
                                             <i class="fa-solid fa-trash text-white text-xs"></i>
@@ -1969,6 +2418,9 @@
                 registerPasswordConfirm: '',
                 registerErrorMsg: '',
                 isRegistering: false,
+                guestInviteCode: localStorage.getItem('hongyuan_guest_invite_code') || '86392672',
+                guestInviteInput: '',
+                guestInviteErrorMsg: '',
                 siteAdminAccount: '',
                 siteAdminPassword: '',
                 tempAdminAccount: '',
@@ -2077,6 +2529,7 @@
                 // 各式 Modal 狀態
                 showNewItemModalFlag: false,
                 newItemForm: { name: '', space: '玄關', category: '油漆工種', method: '目視檢驗', unit: 'A3-01', dueDate: '', remark: '', defectPhotos: [] },
+                lastNewItemDefaults: { space: '玄關', category: '油漆工種', method: '目視檢驗', unit: 'A3-01' },
 
                 showEditItemModalFlag: false,
                 editItemForm: {},
@@ -2110,7 +2563,26 @@
                         try { this.systemUsers = JSON.parse(savedUsers); } catch(e){}
                     }
 
+                    const savedGuestInviteCode = localStorage.getItem('hongyuan_guest_invite_code');
+                    if (savedGuestInviteCode) this.guestInviteCode = savedGuestInviteCode;
+
                     this.checkLockoutStatus();
+
+                    // 記住上次正在使用的專案，避免回到「專案清單管理」又跳回第一個專案。
+                    const savedSelectedProjectId = localStorage.getItem('hongyuan_selected_project_id');
+
+                    const savedDefaults = localStorage.getItem('hongyuan_new_item_defaults');
+                    if (savedDefaults) {
+                        try {
+                            const d = JSON.parse(savedDefaults);
+                            this.lastNewItemDefaults = {
+                                space: d.space || this.lastNewItemDefaults.space,
+                                category: d.category || this.lastNewItemDefaults.category,
+                                method: d.method || this.lastNewItemDefaults.method,
+                                unit: d.unit || this.lastNewItemDefaults.unit
+                            };
+                        } catch(e) {}
+                    }
 
                     // 讀取本地暫存做為基礎備援
                     const savedProjects = localStorage.getItem('hongyuan_projects');
@@ -2118,15 +2590,30 @@
                         try {
                             this.projects = JSON.parse(savedProjects);
                             if (this.projects.length > 0) {
-                                this.selectedProjectId = this.projects[0].id;
-                                this.currentProjectName = this.projects[0].name;
-                                this.items = this.projects[0].items || [];
+                                const remembered = this.projects.find(p => p.id === savedSelectedProjectId) || this.projects[0];
+                                this.selectedProjectId = remembered.id;
+                                this.currentProjectName = remembered.name;
+                                this.items = JSON.parse(JSON.stringify(remembered.items || []));
                             }
                         } catch(e) {}
                     } else {
                         this.projects[0].items = [...this.items];
                         this.saveProjectsToStorage();
+                        localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
                     }
+
+                    this.analyticsProjectId = this.selectedProjectId;
+
+                    // 在登入/訪客狀態下，圖片貼上可直接進入目前作用中的照片欄位。
+                    this._globalPasteHandler = (event) => {
+                        if (event.defaultPrevented) return;
+                        if (this.showNewItemModalFlag) {
+                            this.handleNewItemPaste(event);
+                        } else if (this.showPhotoModalFlag) {
+                            this.handlePhotoModalPaste(event);
+                        }
+                    };
+                    document.addEventListener('paste', this._globalPasteHandler);
 
                     // 初始化 Supabase 雲端並訂閱 Realtime 廣播
                     this.initSupabase();
@@ -2195,7 +2682,26 @@
                 },
 
                 async enterGuestMode() {
-                    // 訪客不建立 Supabase Auth Session，只進入 Viewer 純觀看狀態。
+                    // 訪客模式必須通過邀請碼，且不建立 Supabase Auth Session。
+                    const code = this.guestInviteInput || '';
+                    const configuredCode = this.guestInviteCode || '86392672';
+
+                    if (!code) {
+                        this.guestInviteErrorMsg = '請輸入訪客邀請碼。';
+                        return;
+                    }
+
+                    if (code.length > 20 || !/^[\x21-\x7E]+$/.test(code)) {
+                        this.guestInviteErrorMsg = '邀請碼僅可使用英文、數字與符號，最多 20 字。';
+                        return;
+                    }
+
+                    if (code !== configuredCode) {
+                        this.guestInviteErrorMsg = '訪客邀請碼錯誤，請向管理者取得最新邀請碼。';
+                        return;
+                    }
+
+                    this.guestInviteErrorMsg = '';
                     this.isGuestMode = true;
                     this.authUser = null;
                     this.authRole = 'Viewer';
@@ -2206,6 +2712,7 @@
                     this.siteLoginPassword = '';
                     this.loginErrorMsg = '';
                     this.registerErrorMsg = '';
+                    this.guestInviteInput = '';
                 },
 
                 async registerAccount() {
@@ -2381,8 +2888,29 @@
                     this.siteLoginPassword = '';
                     this.registerPassword = '';
                     this.registerPasswordConfirm = '';
+                    this.guestInviteInput = '';
+                    this.guestInviteErrorMsg = '';
                     this.loginErrorMsg = '';
                     this.registerErrorMsg = '';
+                },
+
+                saveGuestInviteCode() {
+                    const code = this.guestInviteCode || '';
+                    if (!code) {
+                        alert('邀請碼不可為空白。');
+                        return;
+                    }
+                    if (code.length > 20) {
+                        alert('邀請碼最多 20 字。');
+                        return;
+                    }
+                    if (!/^[\x21-\x7E]+$/.test(code)) {
+                        alert('邀請碼僅可使用英文、數字與符號，不可包含空白或中文。');
+                        return;
+                    }
+                    this.guestInviteCode = code;
+                    localStorage.setItem('hongyuan_guest_invite_code', code);
+                    alert('訪客邀請碼已更新。之後訪客需使用新的邀請碼。');
                 },
 
                 saveSupabaseConfig() {
@@ -2510,13 +3038,17 @@
                             this.cloudProjectSnapshot[p.id] = p.name;
                         });
 
+                        const rememberedId = localStorage.getItem('hongyuan_selected_project_id');
                         const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
-                        const target = currentExist || this.projects[0];
+                        const remembered = rememberedId ? this.projects.find(p => p.id === rememberedId) : null;
+                        const target = currentExist || remembered || this.projects[0];
 
                         if (target) {
                             this.selectedProjectId = target.id;
                             this.currentProjectName = target.name;
                             this.items = JSON.parse(JSON.stringify(target.items || []));
+                            this.analyticsProjectId = target.id;
+                            localStorage.setItem('hongyuan_selected_project_id', target.id);
                         }
 
                         localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
@@ -2860,6 +3392,8 @@
                     }
 
                     localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                    if (this.selectedProjectId) localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
+                    if (!this.analyticsProjectId) this.analyticsProjectId = this.selectedProjectId;
 
                     if (this.supabaseClient) {
                         this.enqueueCloudWrite(() => this.syncCurrentProjectToSupabase());
@@ -3013,9 +3547,12 @@
                     });
                 },
 
-                // 安全切換專案
+                // 安全切換專案：畫面、專案清單、統計儀表板共用同一個作用中專案。
                 switchProjectById(targetId) {
-                    if (!targetId || targetId === this.selectedProjectId) return;
+                    if (!targetId) return;
+
+                    const targetProj = this.projects.find(x => x.id === targetId);
+                    if (!targetProj) return;
 
                     const currentIdx = this.projects.findIndex(p => p.id === this.selectedProjectId);
                     if (currentIdx !== -1) {
@@ -3023,14 +3560,21 @@
                         this.projects[currentIdx].name = this.currentProjectName;
                     }
 
-                    const targetProj = this.projects.find(x => x.id === targetId);
-                    if (targetProj) {
-                        this.selectedProjectId = targetProj.id;
-                        this.currentProjectName = targetProj.name;
-                        this.items = JSON.parse(JSON.stringify(targetProj.items || []));
-                    }
+                    this.selectedProjectId = targetProj.id;
+                    this.currentProjectName = targetProj.name;
+                    this.items = JSON.parse(JSON.stringify(targetProj.items || []));
+                    this.analyticsProjectId = targetProj.id;
 
                     this.currentPage = 1;
+                    this.selectedItemIds = [];
+                    this.searchQuery = '';
+                    this.selectedSpaceFilter = '';
+                    this.selectedCategoryFilter = '';
+                    this.selectedUnitFilter = '';
+                    this.filterStatus = '';
+                    this.filterInspectionStatus = '';
+
+                    localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
                     localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
                 },
 
@@ -3074,8 +3618,10 @@
                     
                     this.selectedProjectId = newProj.id;
                     this.currentProjectName = newProj.name;
+                    this.analyticsProjectId = newProj.id;
                     this.items = [];
                     this.currentPage = 1;
+                    localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
                     this.saveProjectsToStorage();
 
                     this.showCreateProjectModalFlag = false;
@@ -3097,7 +3643,9 @@
                             const firstProj = this.projects[0];
                             this.selectedProjectId = firstProj.id;
                             this.currentProjectName = firstProj.name;
+                            this.analyticsProjectId = firstProj.id;
                             this.items = JSON.parse(JSON.stringify(firstProj.items || []));
+                            localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
                         }
                         this.currentPage = 1;
                         this.saveProjectsToStorage();
@@ -3132,32 +3680,61 @@
                     this.saveProjectsToStorage();
                 },
 
+                async addCurrentPhotoFiles(fileList) {
+                    if (!this.hasPermission('edit')) {
+                        alert('目前為純觀看模式，無法新增照片。');
+                        return;
+                    }
+                    const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith('image/'));
+                    if (!files.length || !this.currentPhotoItem) return;
+                    const listKey = this.currentPhotoType + 'Photos';
+                    if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
+
+                    for (const file of files) {
+                        // 先保留壓縮預覽，雲端成功後再換成 Storage 路徑。
+                        const localPreview = await this.compressedPreviewDataUrl(file);
+                        if (localPreview) this.currentPhotoItem[listKey].push(localPreview);
+
+                        if (this.supabaseClient && this.authUser) {
+                            const photoUrl = await this.uploadImageToCloud(
+                                file,
+                                this.currentPhotoType,
+                                this.currentPhotoItem.id || 'draft'
+                            );
+                            if (photoUrl && localPreview) {
+                                const idx = this.currentPhotoItem[listKey].lastIndexOf(localPreview);
+                                if (idx !== -1) this.currentPhotoItem[listKey].splice(idx, 1, photoUrl);
+                            } else if (photoUrl) {
+                                this.currentPhotoItem[listKey].push(photoUrl);
+                            }
+                        }
+                    }
+                    this.saveProjectsToStorage();
+                },
+
                 async uploadPhotosFromInput(e) {
                     const files = e.target.files;
                     if (!files || files.length === 0) return;
-                    for (let file of Array.from(files)) {
-                        const photoUrl = await this.uploadImageToCloud(file, this.currentPhotoType, this.currentPhotoItem.id || 'draft');
-                        if (!photoUrl) continue;
-                        const listKey = this.currentPhotoType + 'Photos';
-                        if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
-                        this.currentPhotoItem[listKey].push(photoUrl);
-                    }
-                    this.saveProjectsToStorage();
+                    await this.addCurrentPhotoFiles(files);
+                    e.target.value = '';
                 },
 
                 async handleFileDrop(e) {
                     const files = e.dataTransfer.files;
                     if (!files || files.length === 0) return;
-                    for (let file of Array.from(files)) {
-                        if (file.type.startsWith('image/')) {
-                            const photoUrl = await this.uploadImageToCloud(file, this.currentPhotoType, this.currentPhotoItem.id || 'draft');
-                            if (!photoUrl) continue;
-                            const listKey = this.currentPhotoType + 'Photos';
-                            if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
-                            this.currentPhotoItem[listKey].push(photoUrl);
+                    await this.addCurrentPhotoFiles(files);
+                },
+
+                async handlePhotoModalPaste(e) {
+                    const items = Array.from(e.clipboardData?.items || []);
+                    const files = [];
+                    for (const item of items) {
+                        if (item.kind === 'file') {
+                            const file = item.getAsFile();
+                            if (file?.type?.startsWith('image/')) files.push(file);
                         }
                     }
-                    this.saveProjectsToStorage();
+                    if (files.length) await this.addCurrentPhotoFiles(files);
                 },
 
                 deleteActivePhoto() {
@@ -3264,12 +3841,19 @@
                 },
 
                 openNewItemModal() {
+                    const d = this.lastNewItemDefaults || {};
+                    const fallback = {
+                        space: this.spaceList.includes(d.space) ? d.space : (this.spaceList[0] || '玄關'),
+                        category: this.categoryList.includes(d.category) ? d.category : (this.categoryList[0] || '油漆工種'),
+                        method: this.methodList.includes(d.method) ? d.method : (this.methodList[0] || '目視檢驗'),
+                        unit: this.unitList.includes(d.unit) ? d.unit : (this.unitList[0] || 'A3-01')
+                    };
                     this.newItemForm = {
                         name: '',
-                        space: this.spaceList[0] || '玄關',
-                        category: this.categoryList[0] || '油漆工種',
-                        method: this.methodList[0] || '目視檢驗',
-                        unit: this.unitList[0] || 'A3-01',
+                        space: fallback.space,
+                        category: fallback.category,
+                        method: fallback.method,
+                        unit: fallback.unit,
                         dueDate: '',
                         remark: '',
                         defectPhotos: []
@@ -3277,28 +3861,88 @@
                     this.showNewItemModalFlag = true;
                 },
 
+                async compressedPreviewDataUrl(file) {
+                    try {
+                        const compressed = await this.compressImage(file);
+                        if (!compressed) return null;
+                        return await new Promise(resolve => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => resolve(null);
+                            reader.readAsDataURL(compressed);
+                        });
+                    } catch (e) {
+                        console.warn('照片預覽建立失敗:', e);
+                        return null;
+                    }
+                },
+
+                async addNewItemPhotoFiles(fileList) {
+                    if (!this.hasPermission('edit')) {
+                        alert('目前為純觀看模式，無法新增照片。');
+                        return;
+                    }
+                    const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith('image/'));
+                    if (!files.length) return;
+
+                    for (const file of files) {
+                        // 先產生壓縮後的本地預覽，使用者可立刻看到，不會因 Storage 延遲而空白。
+                        const localPreview = await this.compressedPreviewDataUrl(file);
+                        if (localPreview) this.newItemForm.defectPhotos.push(localPreview);
+
+                        // 已登入時再同步到 Supabase Storage；成功後以雲端路徑取代本地預覽。
+                        if (this.supabaseClient && this.authUser) {
+                            const photoUrl = await this.uploadImageToCloud(file, 'defect', 'draft');
+                            if (photoUrl && localPreview) {
+                                const idx = this.newItemForm.defectPhotos.lastIndexOf(localPreview);
+                                if (idx !== -1) this.newItemForm.defectPhotos.splice(idx, 1, photoUrl);
+                            } else if (photoUrl) {
+                                this.newItemForm.defectPhotos.push(photoUrl);
+                            }
+                        }
+                    }
+                },
+
                 async uploadNewItemPhotos(e) {
                     const files = e.target.files;
                     if (!files || files.length === 0) return;
-                    for (let file of Array.from(files)) {
-                        const photoUrl = await this.uploadImageToCloud(file, 'defect', 'draft');
-                        if (photoUrl) this.newItemForm.defectPhotos.push(photoUrl);
-                    }
+                    await this.addNewItemPhotoFiles(files);
+                    e.target.value = '';
                 },
 
                 async handleNewItemDrop(e) {
                     const files = e.dataTransfer.files;
                     if (!files || files.length === 0) return;
-                    for (let file of Array.from(files)) {
-                        if (file.type.startsWith('image/')) {
-                            const photoUrl = await this.uploadImageToCloud(file, 'defect', 'draft');
-                            if (photoUrl) this.newItemForm.defectPhotos.push(photoUrl);
+                    await this.addNewItemPhotoFiles(files);
+                },
+
+                async handleNewItemPaste(e) {
+                    const items = Array.from(e.clipboardData?.items || []);
+                    const files = [];
+                    for (const item of items) {
+                        if (item.kind === 'file') {
+                            const file = item.getAsFile();
+                            if (file?.type?.startsWith('image/')) files.push(file);
                         }
                     }
+                    if (files.length) await this.addNewItemPhotoFiles(files);
                 },
 
                 removeNewItemPhoto(idx) {
                     this.newItemForm.defectPhotos.splice(idx, 1);
+                },
+
+                getNextItemCode() {
+                    // 新增項目編號只使用純數字：第一筆為 01，下一筆為 02，依目前專案獨立遞增。
+                    const seqKey = `hongyuan_new_item_seq_${this.selectedProjectId || 'default'}`;
+                    const stored = Number(localStorage.getItem(seqKey) || 0);
+                    const usedNewCodes = this.items
+                        .map(item => String(item?.code || '').trim())
+                        .filter(code => /^\d{2,}$/.test(code))
+                        .map(Number)
+                        .filter(Number.isFinite);
+                    const nextNumber = Math.max(stored + 1, usedNewCodes.length ? Math.max(...usedNewCodes) + 1 : 1);
+                    return String(nextNumber).padStart(2, '0');
                 },
 
                 saveNewItem() {
@@ -3306,9 +3950,11 @@
                         alert('請輸入項目名稱！');
                         return;
                     }
+                    const nextCode = this.getNextItemCode();
                     const newItem = {
                         id: Date.now().toString(),
-                        code: 'ITEM-' + (this.items.length + 1).toString().padStart(2, '0'),
+                        projectId: this.selectedProjectId,
+                        code: nextCode,
                         name: this.newItemForm.name.trim(),
                         space: this.newItemForm.space,
                         category: this.newItemForm.category,
@@ -3324,7 +3970,19 @@
                         repairPhotos: [],
                         inspectionPhotos: []
                     };
-                    this.items.unshift(newItem);
+                    this.items.push(newItem);
+
+                    const seqKey = `hongyuan_new_item_seq_${this.selectedProjectId || 'default'}`;
+                    localStorage.setItem(seqKey, String(parseInt(nextCode, 10) || 1));
+
+                    this.lastNewItemDefaults = {
+                        space: newItem.space,
+                        category: newItem.category,
+                        method: newItem.method,
+                        unit: newItem.unit
+                    };
+                    localStorage.setItem('hongyuan_new_item_defaults', JSON.stringify(this.lastNewItemDefaults));
+
                     this.saveProjectsToStorage();
                     this.showNewItemModalFlag = false;
                 },
@@ -3428,11 +4086,14 @@
 
                 switchAnalyticsProject(projId) {
                     const p = this.projects.find(x => x.id === projId);
-                    if (p) {
-                        this.analyticsSpace = '';
-                        this.analyticsUnit = '';
-                        this.analyticsCategory = '';
+                    if (!p) {
+                        this.analyticsProjectId = this.selectedProjectId;
+                        return;
                     }
+                    this.analyticsProjectId = p.id;
+                    this.analyticsSpace = '';
+                    this.analyticsUnit = '';
+                    this.analyticsCategory = '';
                 },
 
                 get analyticsCurrentProjectItems() {
