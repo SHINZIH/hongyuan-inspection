@@ -643,13 +643,15 @@
             }
             .new-item-action-label { display: none !important; }
 
-            /* 三類照片改為超小正方形、同排排列；其餘列表內容不動。 */
+            /* 手機列表：左側放項目名稱／狀態，右側固定三張正方形縮圖並排。 */
             .mobile-photo-thumb-row {
                 display: flex !important;
-                align-items: flex-start !important;
-                justify-content: flex-start !important;
-                gap: 6px !important;
-                width: 100% !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+                gap: 5px !important;
+                width: auto !important;
+                margin-left: auto !important;
+                flex: 0 0 auto !important;
             }
             .mobile-photo-thumb-square {
                 width: 52px !important;
@@ -659,6 +661,9 @@
                 flex: 0 0 52px !important;
                 aspect-ratio: 1 / 1 !important;
             }
+            .mobile-item-name { font-size: 14px !important; line-height: 1.45 !important; }
+            .mobile-item-method { font-size: 10.5px !important; line-height: 1.35 !important; }
+            .mobile-status-pill { font-size: 10.5px !important; line-height: 1.35 !important; }
         }
         @media (max-width: 767px) {
             .desktop-inspection-table { display: none !important; }
@@ -1469,35 +1474,37 @@
                                         </template>
                                     </div>
 
-                                    <div class="px-2.5 py-2">
-                                        <button type="button" @click.stop="openEditModal(item)" class="text-left w-full min-w-0">
-                                            <h3 class="text-xs sm:text-sm font-bold text-slate-800 leading-5 line-clamp-2" x-text="item.name || '未命名缺失'"></h3>
-                                            <p class="text-[9px] text-slate-400 mt-0.5 truncate" x-text="item.method || '-'" ></p>
-                                        </button>
-                                        <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="{'bg-amber-50 text-amber-700':item.repairStatus==='待修繕','bg-blue-50 text-blue-700':item.repairStatus==='修繕中','bg-emerald-50 text-emerald-700':item.repairStatus==='已完成'}" x-text="item.repairStatus"></span>
-                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="item.inspectionStatus==='合格' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'" x-text="item.inspectionStatus"></span>
-                                        </div>
-                                    </div>
-
-                                    <div class="px-2.5 pb-2.5">
-                                        <div class="mobile-photo-thumb-row">
-                                            <template x-for="cfg in [
-                                                {type:'defect', label:'缺失'},
-                                                {type:'repair', label:'修繕'},
-                                                {type:'inspection', label:'工檢'}
-                                            ]" :key="item.id+'-thumb-'+cfg.type">
-                                                <button type="button" @click.stop="openPhotoModal(item, cfg.type)" class="group relative mobile-photo-thumb-square rounded-md overflow-hidden border border-slate-200 bg-slate-100" :aria-label="cfg.label + '照片管理'" :title="cfg.label + '照片管理'">
-                                                    <template x-if="(item[cfg.type+'Photos'] || []).length > 0">
-                                                        <img :src="getPhotoUrl((item[cfg.type+'Photos'] || [])[0])" class="w-full h-full object-cover" :alt="cfg.label + '縮圖'">
-                                                    </template>
-                                                    <template x-if="(item[cfg.type+'Photos'] || []).length === 0">
-                                                        <span class="w-full h-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-image text-sm"></i></span>
-                                                    </template>
-                                                    <span class="absolute left-0 bottom-0 px-1 py-0.5 rounded-tr bg-black/55 text-white text-[8px] font-semibold" x-text="cfg.label"></span>
-                                                    <span class="absolute right-0 bottom-0 px-1 py-0.5 bg-black/55 text-white text-[8px] font-mono" x-text="(item[cfg.type+'Photos'] || []).length"></span>
+                                    <div class="px-2.5 py-2.5">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <div class="min-w-0 flex-1 pr-1">
+                                                <button type="button" @click.stop="openEditModal(item)" class="text-left w-full min-w-0 block">
+                                                    <h3 class="mobile-item-name text-sm font-bold text-slate-800 leading-5 line-clamp-2" x-text="item.name || '未命名缺失'"></h3>
+                                                    <p class="mobile-item-method text-[10px] text-slate-400 mt-1 truncate" x-text="item.method || '-'" ></p>
                                                 </button>
-                                            </template>
+                                                <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                                                    <span class="mobile-status-pill px-2 py-0.5 rounded text-[10px] font-bold" :class="{'bg-amber-50 text-amber-700':item.repairStatus==='待修繕','bg-blue-50 text-blue-700':item.repairStatus==='修繕中','bg-emerald-50 text-emerald-700':item.repairStatus==='已完成'}" x-text="item.repairStatus"></span>
+                                                    <span class="mobile-status-pill px-2 py-0.5 rounded text-[10px] font-bold" :class="item.inspectionStatus==='合格' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'" x-text="item.inspectionStatus"></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="mobile-photo-thumb-row shrink-0">
+                                                <template x-for="cfg in [
+                                                    {type:'defect', label:'缺失'},
+                                                    {type:'repair', label:'修繕'},
+                                                    {type:'inspection', label:'工檢'}
+                                                ]" :key="item.id+'-thumb-'+cfg.type">
+                                                    <button type="button" @click.stop="openPhotoModal(item, cfg.type)" class="group relative mobile-photo-thumb-square rounded-md overflow-hidden border border-slate-200 bg-slate-100" :aria-label="cfg.label + '照片管理'" :title="cfg.label + '照片管理'">
+                                                        <template x-if="(item[cfg.type+'Photos'] || []).length > 0">
+                                                            <img :src="getPhotoUrl((item[cfg.type+'Photos'] || [])[0])" class="w-full h-full object-cover" :alt="cfg.label + '縮圖'">
+                                                        </template>
+                                                        <template x-if="(item[cfg.type+'Photos'] || []).length === 0">
+                                                            <span class="w-full h-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-image text-sm"></i></span>
+                                                        </template>
+                                                        <span class="absolute left-0 bottom-0 px-1 py-0.5 rounded-tr bg-black/55 text-white text-[8px] font-semibold" x-text="cfg.label"></span>
+                                                        <span class="absolute right-0 bottom-0 px-1 py-0.5 bg-black/55 text-white text-[8px] font-mono" x-text="(item[cfg.type+'Photos'] || []).length"></span>
+                                                    </button>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
                                 </article>
@@ -1765,6 +1772,36 @@
                                         </button>
                                         <button @click="saveSupabaseConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存 Supabase 設定並連線</button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- 🧹 Supabase Storage 孤兒照片維護 -->
+                            <div class="p-5 bg-rose-50/60 rounded-xl border border-rose-200 space-y-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                            <i class="fa-solid fa-broom text-rose-600"></i>
+                                            <span>Supabase Storage 照片維護</span>
+                                        </h4>
+                                        <p class="text-xs text-slate-500 mt-1">只掃描「inspection-photos」Bucket 中，符合系統照片路徑格式、但已找不到任何驗屋缺失資料引用的孤兒照片。掃描不會刪除；確認後才可清理。</p>
+                                    </div>
+                                    <span class="text-[11px] px-2 py-1 rounded-full bg-white border border-rose-200 text-rose-700 font-semibold shrink-0">Owner 專用</span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button @click="scanOrphanPhotos()" :disabled="authRole !== 'Owner' || orphanScanState === 'scanning' || orphanScanState === 'cleaning' || !supabaseClient" class="px-3 py-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold text-xs">
+                                        <i class="fa-solid fa-magnifying-glass mr-1"></i><span x-text="orphanScanState === 'scanning' ? '掃描中…' : '掃描孤兒照片'"></span>
+                                    </button>
+                                    <button @click="cleanOrphanPhotos()" :disabled="authRole !== 'Owner' || orphanScanState !== 'ready' || !orphanScanResults.length" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs">
+                                        <i class="fa-solid fa-trash-can mr-1"></i><span x-text="orphanScanState === 'cleaning' ? '清理中…' : '清除掃描出的孤兒照片'"></span>
+                                    </button>
+                                </div>
+                                <div class="text-[11px] text-slate-500" x-show="orphanScanState === 'ready' || orphanScanState === 'cleaning' || orphanScanState === 'error'">
+                                    <span x-show="orphanScanState !== 'error'">掃描結果：<b x-text="orphanScanResults.length"></b> 張 <span x-show="orphanScanLastAt">｜最後掃描：<span x-text="formatSyncTime(orphanScanLastAt)"></span></span> <span x-show="orphanScanDeletedCount">｜本次已清理：<span x-text="orphanScanDeletedCount"></span> 張</span></span>
+                                    <span class="text-red-600" x-show="orphanScanState === 'error'" x-text="orphanScanLastError"></span>
+                                </div>
+                                <div x-show="orphanScanResults.length" class="max-h-36 overflow-y-auto bg-white rounded-lg border border-rose-100 p-2 space-y-1">
+                                    <template x-for="path in orphanScanResults.slice(0,100)" :key="path"><div class="text-[10px] font-mono text-slate-500 truncate" x-text="path"></div></template>
+                                    <div x-show="orphanScanResults.length > 100" class="text-[10px] text-slate-400 pt-1">僅顯示前 100 筆；清理按鈕會處理全部掃描結果。</div>
                                 </div>
                             </div>
 
@@ -2565,28 +2602,28 @@
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">空間位置</label>
                         <select :value="editItemForm.space || ''" @change="editItemForm.space = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
+                            <template x-for="s in editSpaceOptions" :key="s"><option :value="s" x-text="s"></option></template>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">工種/類別</label>
                         <select :value="editItemForm.category || ''" @change="editItemForm.category = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
+                            <template x-for="c in editCategoryOptions" :key="c"><option :value="c" x-text="c"></option></template>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">驗收方法</label>
                         <select :value="editItemForm.method || ''" @change="editItemForm.method = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
+                            <template x-for="m in editMethodOptions" :key="m"><option :value="m" x-text="m"></option></template>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">戶別</label>
                         <select :value="editItemForm.unit || ''" @change="editItemForm.unit = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
+                            <template x-for="u in editUnitOptions" :key="u"><option :value="u" x-text="u"></option></template>
                         </select>
                     </div>
 
@@ -2725,6 +2762,19 @@
                 optionSettingsLastAt: '',
                 optionSettingsLastError: '',
                 optionSettingsRowId: 'global',
+
+                // 🧹 Supabase Storage 孤兒照片掃描
+                orphanScanState: 'idle', // idle | scanning | ready | cleaning | error
+                orphanScanResults: [],
+                orphanScanLastAt: '',
+                orphanScanLastError: '',
+                orphanScanDeletedCount: 0,
+
+                // 編輯歷史值：即使選項已從共用設定移除，也只在編輯視窗暫時保留
+                editSpaceOptions: [],
+                editCategoryOptions: [],
+                editMethodOptions: [],
+                editUnitOptions: [],
 
                 // 分頁控制狀態
                 currentPage: 1,
@@ -3843,6 +3893,93 @@
                     (rows || []).forEach(row => delete this.cloudItemSnapshot[row.id]);
                 },
 
+                normalizeStoragePhotoPath(value) {
+                    if (typeof value !== 'string') return '';
+                    const raw = value.trim();
+                    if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return '';
+                    if (!/^https?:\/\//i.test(raw)) return raw;
+                    try {
+                        const url = new URL(raw);
+                        const bucket = encodeURIComponent(this.supabasePhotoBucket);
+                        const match = url.pathname.match(new RegExp('/storage/v1/object/(?:public|sign|authenticated)/' + bucket + '/(.+)$'));
+                        if (!match) return '';
+                        return decodeURIComponent(match[1]);
+                    } catch (e) { return ''; }
+                },
+
+                async listAllStorageFiles(prefix = '') {
+                    if (!this.supabaseClient) throw new Error('尚未建立 Supabase 連線。');
+                    const storage = this.supabaseClient.storage.from(this.supabasePhotoBucket);
+                    const files = [];
+                    let offset = 0;
+                    const limit = 1000;
+                    while (true) {
+                        const { data, error } = await storage.list(prefix, { limit, offset, sortBy: { column: 'name', order: 'asc' } });
+                        if (error) throw error;
+                        const entries = data || [];
+                        if (!entries.length) break;
+                        for (const entry of entries) {
+                            const name = entry?.name;
+                            if (!name) continue;
+                            const fullPath = prefix ? `${prefix}${name}` : name;
+                            if (entry.id || entry.metadata) files.push(fullPath);
+                            else files.push(...await this.listAllStorageFiles(fullPath.endsWith('/') ? fullPath : `${fullPath}/`));
+                        }
+                        if (entries.length < limit) break;
+                        offset += limit;
+                    }
+                    return files;
+                },
+
+                async getReferencedStoragePhotoPaths() {
+                    if (!this.supabaseClient) throw new Error('尚未建立 Supabase 連線。');
+                    const { data, error } = await this.supabaseClient.from('inspection_items').select('defect_photos,repair_photos,inspection_photos');
+                    if (error) throw error;
+                    const referenced = new Set();
+                    const add = value => {
+                        if (!Array.isArray(value)) return;
+                        value.forEach(photo => { const path = this.normalizeStoragePhotoPath(photo); if (path) referenced.add(path); });
+                    };
+                    (data || []).forEach(row => { add(row.defect_photos); add(row.repair_photos); add(row.inspection_photos); });
+                    return referenced;
+                },
+
+                isManagedInspectionPhotoPath(path) {
+                    return /^[^/]+\/(?:defect|repair|inspection)\/[^/]+\/[^/]+$/.test(path);
+                },
+
+                async scanOrphanPhotos() {
+                    if (this.authRole !== 'Owner') return alert('只有 Owner 可以掃描與清理 Storage 孤兒照片。');
+                    if (!this.supabaseClient) return alert('目前尚未建立 Supabase 連線。');
+                    this.orphanScanState = 'scanning'; this.orphanScanLastError = ''; this.orphanScanResults = []; this.orphanScanDeletedCount = 0;
+                    try {
+                        const [allFiles, referenced] = await Promise.all([this.listAllStorageFiles(''), this.getReferencedStoragePhotoPaths()]);
+                        this.orphanScanResults = [...new Set(allFiles.filter(path => this.isManagedInspectionPhotoPath(path)).filter(path => !referenced.has(path)))].sort();
+                        this.orphanScanLastAt = new Date().toISOString();
+                        this.orphanScanState = 'ready';
+                    } catch (err) {
+                        console.error('Storage 孤兒照片掃描失敗:', err);
+                        this.orphanScanState = 'error';
+                        this.orphanScanLastError = err?.message || '無法掃描 Storage，請確認 Bucket List / RLS 權限。';
+                    }
+                },
+
+                async cleanOrphanPhotos() {
+                    if (this.authRole !== 'Owner') return alert('只有 Owner 可以清理 Storage 孤兒照片。');
+                    if (!this.orphanScanResults.length) return;
+                    if (!confirm(`確認刪除掃描出的 ${this.orphanScanResults.length} 張孤兒照片？\n\n這些照片目前找不到任何 inspection_items 引用。此操作無法復原。`)) return;
+                    const paths = [...this.orphanScanResults];
+                    this.orphanScanState = 'cleaning'; this.orphanScanLastError = '';
+                    try {
+                        await this.removeStoragePhotos(paths);
+                        this.orphanScanDeletedCount = paths.length; this.orphanScanResults = []; this.orphanScanLastAt = new Date().toISOString(); this.orphanScanState = 'ready';
+                        this.cloudSyncLastAt = new Date().toISOString(); this.cloudSyncState = 'success'; this.cloudSyncMessage = `已清理 ${paths.length} 張孤兒照片`;
+                    } catch (err) {
+                        console.error('Storage 孤兒照片清理失敗:', err);
+                        this.orphanScanState = 'error'; this.orphanScanLastError = err?.message || '孤兒照片清理失敗';
+                    }
+                },
+
                 handleRealtimePayload(payload, tableName) {
                     if (!payload) return;
 
@@ -4729,17 +4866,18 @@
                 openEditModal(item) {
                     const clone = JSON.parse(JSON.stringify(item || {}));
 
-                    // 編輯時永遠以目前項目的實際值為準。若既有資料的值已不在設定清單，
-                    // 先補回選項，避免原生 select 因找不到 value 而自動顯示第一格（例如玄關）。
-                    const ensureOption = (listName, value) => {
-                        if (!value) return;
-                        const list = Array.isArray(this[listName]) ? this[listName] : [];
-                        if (!list.includes(value)) this[listName] = [value, ...list];
+                    // 編輯時永遠以目前項目的實際值為準。
+                    // 若歷史資料的選項已被 Owner 從共用設定刪除，只在本次編輯視窗暫時加入，
+                    // 不修改共用的 spaceList/categoryList/methodList/unitList，避免把已刪除選項寫回 Supabase。
+                    const withHistoricalValue = (list, value) => {
+                        const base = Array.isArray(list) ? [...list] : [];
+                        if (value && !base.includes(value)) base.unshift(value);
+                        return base;
                     };
-                    ensureOption('spaceList', clone.space);
-                    ensureOption('categoryList', clone.category);
-                    ensureOption('methodList', clone.method);
-                    ensureOption('unitList', clone.unit);
+                    this.editSpaceOptions = withHistoricalValue(this.spaceList, clone.space);
+                    this.editCategoryOptions = withHistoricalValue(this.categoryList, clone.category);
+                    this.editMethodOptions = withHistoricalValue(this.methodList, clone.method);
+                    this.editUnitOptions = withHistoricalValue(this.unitList, clone.unit);
 
                     this.editItemForm = {
                         ...clone,
