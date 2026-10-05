@@ -583,6 +583,10 @@
         .mobile-photo-upload-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
         .mobile-thumb { width: 74px; height: 58px; }
         .mobile-compact-btn { min-height: 34px !important; }
+        .mobile-icon-btn { width: 28px; height: 28px; min-width: 28px; border-radius: 8px; background: #fff; border: 1px solid #dbe5ee; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+        .mobile-inspection-card button { -webkit-tap-highlight-color: transparent; }
+        /* 相片分類切換只屬於手機操作層，桌面版保持原本照片視窗。 */
+        .photo-type-tabs { display: none; }
         .mobile-edit-modal-card { max-height: 92vh; }
         @media (max-width: 767px) {
             .desktop-filter-controls { display: none !important; }
@@ -598,6 +602,63 @@
             .mobile-inspection-cards select { min-height: 38px; }
             .mobile-inspection-cards article { padding: 10px !important; border-radius: 14px !important; }
             .mobile-edit-modal-card { width: min(100%, 430px) !important; max-height: 92vh !important; border-radius: 18px !important; }
+            .mobile-icon-btn { width: 26px; height: 26px; min-width: 26px; border-radius: 7px; font-size: 10px; }
+            .photo-type-tabs { display: flex !important; }
+
+            /* 手機專用：標題操作只留圖示，保持桌面版完整文字。 */
+            .project-name-edit-action {
+                width: 30px !important;
+                min-width: 30px !important;
+                height: 30px !important;
+                min-height: 30px !important;
+                padding: 0 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                border-radius: 8px !important;
+            }
+            .project-name-edit-action .project-name-edit-label { display: none !important; }
+
+            /* 已同步狀態再縮小一階，避免佔據專案標題空間。 */
+            .sync-status-pill {
+                max-width: 44px !important;
+                padding: 1px 5px !important;
+                font-size: 8px !important;
+                line-height: 1.25 !important;
+                border-radius: 999px !important;
+            }
+
+            /* 新增缺失：手機只保留一顆藍底 + 圖示。 */
+            .new-item-action {
+                width: 34px !important;
+                min-width: 34px !important;
+                height: 34px !important;
+                min-height: 34px !important;
+                padding: 0 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 0 !important;
+                border-radius: 9px !important;
+            }
+            .new-item-action-label { display: none !important; }
+
+            /* 三類照片改為超小正方形、同排排列；其餘列表內容不動。 */
+            .mobile-photo-thumb-row {
+                display: flex !important;
+                align-items: flex-start !important;
+                justify-content: flex-start !important;
+                gap: 6px !important;
+                width: 100% !important;
+            }
+            .mobile-photo-thumb-square {
+                width: 52px !important;
+                height: 52px !important;
+                min-width: 52px !important;
+                min-height: 52px !important;
+                flex: 0 0 52px !important;
+                aspect-ratio: 1 / 1 !important;
+            }
         }
         @media (max-width: 767px) {
             .desktop-inspection-table { display: none !important; }
@@ -886,8 +947,8 @@
                                 <h1 class="text-lg font-bold text-slate-800 tracking-tight" x-text="currentProjectName"></h1>
                                 <span x-show="isSiteAuthenticated" x-cloak class="sync-status-pill text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" :class="cloudSyncStateClass(true)" x-text="cloudSyncStatusLabel()" title="Supabase 資料寫入狀態"></span>
                                 <template x-if="hasPermission('edit')">
-                                    <button @click="openEditProjectModal()" class="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition font-medium">
-                                        <i class="fa-solid fa-pen-to-square mr-1"></i>變更名稱
+                                    <button @click="openEditProjectModal()" class="project-name-edit-action text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition font-medium" title="變更專案名稱" aria-label="變更專案名稱">
+                                        <i class="fa-solid fa-pen-to-square"></i><span class="project-name-edit-label ml-1">變更名稱</span>
                                     </button>
                                 </template>
                             </div>
@@ -923,9 +984,9 @@
                         </button>
 
                         <template x-if="hasPermission('create')">
-                            <button @click="openNewItemModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-2 shadow-sm">
+                            <button @click="openNewItemModal()" class="new-item-action bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-2 shadow-sm" title="新增驗屋缺失項目" aria-label="新增驗屋缺失項目">
                                 <i class="fa-solid fa-plus"></i>
-                                <span>新增驗屋缺失項目</span>
+                                <span class="new-item-action-label">新增驗屋缺失項目</span>
                             </button>
                         </template>
 
@@ -1376,7 +1437,7 @@
                             </div>
                         </template>
 
-                        <!-- 📱 手機專用卡片清單：保留列表模式，但改成圖庫式密度與操作。 -->
+                        <!-- 📱 手機專用精簡列表：只保留編輯、刪除、單一相機入口與三張超小縮圖。 -->
                         <div class="mobile-inspection-cards space-y-2.5" x-show="viewMode === 'table'">
                             <template x-if="filteredItems.length === 0">
                                 <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 shadow-sm">
@@ -1386,63 +1447,58 @@
                             </template>
 
                             <template x-for="item in paginatedItems" :key="'m-'+item.id">
-                                <article class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-100">
-                                        <span class="font-mono text-xs font-bold text-blue-700" x-text="item.code"></span>
-                                        <span class="text-[11px] text-slate-500 truncate" x-text="(item.space || '-') + ' / ' + (item.category || '-')"></span>
-                                        <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-50 text-blue-600" x-text="item.unit || '-'"></span>
+                                <article class="mobile-inspection-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div class="flex items-center gap-1.5 px-2.5 py-2 border-b border-slate-100 bg-slate-50/80">
+                                        <span class="font-mono text-[10px] font-bold text-blue-700 shrink-0" x-text="item.code || '-'" ></span>
+                                        <span class="text-[10px] text-slate-500 truncate min-w-0" x-text="(item.space || '-') + ' / ' + (item.category || '-')"></span>
+                                        <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded font-semibold bg-blue-50 text-blue-600 shrink-0" x-text="item.unit || '-'" ></span>
                                         <template x-if="hasPermission('edit')">
-                                            <button type="button" @click.stop="openEditModal(item)" class="w-8 h-8 rounded-lg text-blue-600 bg-white border border-slate-200 flex items-center justify-center" aria-label="編輯"><i class="fa-solid fa-pen text-xs"></i></button>
+                                            <button type="button" @click.stop="openEditModal(item)" class="mobile-icon-btn text-blue-600" aria-label="編輯" title="編輯">
+                                                <i class="fa-solid fa-pen"></i>
+                                            </button>
+                                        </template>
+                                        <template x-if="hasPermission('delete')">
+                                            <button type="button" @click.stop="deleteItem(item.id)" class="mobile-icon-btn text-red-600" aria-label="刪除" title="刪除">
+                                                <i class="fa-solid fa-trash-can"></i>
+                                            </button>
+                                        </template>
+                                        <template x-if="hasPermission('edit')">
+                                            <button type="button" @click.stop="openPhotoModal(item, 'defect')" class="mobile-icon-btn text-slate-600" aria-label="照片管理" title="照片管理">
+                                                <i class="fa-solid fa-camera"></i>
+                                            </button>
                                         </template>
                                     </div>
 
-                                    <div class="flex gap-2.5 p-2.5">
-                                        <button type="button" @click.stop="openPhotoModal(item, 'defect')" class="mobile-thumb shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative" aria-label="檢視缺失照片">
-                                            <template x-if="item.defectPhotos && item.defectPhotos.length">
-                                                <img :src="getPhotoUrl(item.defectPhotos[0])" class="w-full h-full object-cover" alt="缺失縮圖">
-                                            </template>
-                                            <template x-if="!(item.defectPhotos && item.defectPhotos.length)">
-                                                <div class="w-full h-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-image text-lg"></i></div>
-                                            </template>
-                                            <span class="absolute bottom-0 left-0 right-0 bg-black/55 text-white text-[9px] py-0.5 text-center"><i class="fa-solid fa-camera mr-0.5"></i><span x-text="item.defectPhotos ? item.defectPhotos.length : 0"></span></span>
+                                    <div class="px-2.5 py-2">
+                                        <button type="button" @click.stop="openEditModal(item)" class="text-left w-full min-w-0">
+                                            <h3 class="text-xs sm:text-sm font-bold text-slate-800 leading-5 line-clamp-2" x-text="item.name || '未命名缺失'"></h3>
+                                            <p class="text-[9px] text-slate-400 mt-0.5 truncate" x-text="item.method || '-'" ></p>
                                         </button>
-
-                                        <div class="min-w-0 flex-1">
-                                            <button type="button" @click.stop="openEditModal(item)" class="text-left w-full">
-                                                <h3 class="text-sm font-bold text-slate-800 leading-5 line-clamp-2" x-text="item.name"></h3>
-                                                <p class="text-[10px] text-slate-400 mt-0.5 truncate" x-text="item.method || '-'"></p>
-                                            </button>
-                                            <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="{'bg-amber-50 text-amber-700':item.repairStatus==='待修繕','bg-blue-50 text-blue-700':item.repairStatus==='修繕中','bg-emerald-50 text-emerald-700':item.repairStatus==='已完成'}" x-text="item.repairStatus"></span>
-                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="item.inspectionStatus==='合格' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'" x-text="item.inspectionStatus"></span>
-                                            </div>
+                                        <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="{'bg-amber-50 text-amber-700':item.repairStatus==='待修繕','bg-blue-50 text-blue-700':item.repairStatus==='修繕中','bg-emerald-50 text-emerald-700':item.repairStatus==='已完成'}" x-text="item.repairStatus"></span>
+                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold" :class="item.inspectionStatus==='合格' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'" x-text="item.inspectionStatus"></span>
                                         </div>
                                     </div>
 
-                                    <div class="grid grid-cols-3 border-t border-slate-100">
-                                        <template x-for="cfg in [
-                                            {type:'defect', label:'缺失', icon:'fa-camera', cls:'text-amber-700 bg-amber-50'},
-                                            {type:'repair', label:'修繕', icon:'fa-wrench', cls:'text-blue-700 bg-blue-50'},
-                                            {type:'inspection', label:'工檢', icon:'fa-clipboard-check', cls:'text-emerald-700 bg-emerald-50'}
-                                        ]" :key="item.id+'-'+cfg.type">
-                                            <div class="relative border-r last:border-r-0 border-slate-100 p-1.5">
-                                                <button type="button" @click.stop="openPhotoModal(item, cfg.type)" class="w-full h-8 rounded-md text-[10px] font-semibold flex items-center justify-center gap-1" :class="cfg.cls">
-                                                    <i class="fa-solid" :class="cfg.icon"></i><span x-text="cfg.label"></span><span x-text="(item[cfg.type+'Photos'] || []).length"></span>
+                                    <div class="px-2.5 pb-2.5">
+                                        <div class="mobile-photo-thumb-row">
+                                            <template x-for="cfg in [
+                                                {type:'defect', label:'缺失'},
+                                                {type:'repair', label:'修繕'},
+                                                {type:'inspection', label:'工檢'}
+                                            ]" :key="item.id+'-thumb-'+cfg.type">
+                                                <button type="button" @click.stop="openPhotoModal(item, cfg.type)" class="group relative mobile-photo-thumb-square rounded-md overflow-hidden border border-slate-200 bg-slate-100" :aria-label="cfg.label + '照片管理'" :title="cfg.label + '照片管理'">
+                                                    <template x-if="(item[cfg.type+'Photos'] || []).length > 0">
+                                                        <img :src="getPhotoUrl((item[cfg.type+'Photos'] || [])[0])" class="w-full h-full object-cover" :alt="cfg.label + '縮圖'">
+                                                    </template>
+                                                    <template x-if="(item[cfg.type+'Photos'] || []).length === 0">
+                                                        <span class="w-full h-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-image text-sm"></i></span>
+                                                    </template>
+                                                    <span class="absolute left-0 bottom-0 px-1 py-0.5 rounded-tr bg-black/55 text-white text-[8px] font-semibold" x-text="cfg.label"></span>
+                                                    <span class="absolute right-0 bottom-0 px-1 py-0.5 bg-black/55 text-white text-[8px] font-mono" x-text="(item[cfg.type+'Photos'] || []).length"></span>
                                                 </button>
-                                                <template x-if="hasPermission('edit')">
-                                                    <div class="flex gap-1 mt-1">
-                                                        <label class="flex-1 h-7 rounded bg-white border border-slate-200 text-[9px] text-slate-600 flex items-center justify-center cursor-pointer" :for="'mcam-'+cfg.type+'-'+item.id" title="即時拍照">
-                                                            <i class="fa-solid fa-camera"></i>
-                                                        </label>
-                                                        <input class="mobile-photo-upload-input" :id="'mcam-'+cfg.type+'-'+item.id" type="file" accept="image/*" capture="environment" @change="uploadMobilePhoto($event,item,cfg.type)">
-                                                        <label class="flex-1 h-7 rounded bg-white border border-slate-200 text-[9px] text-slate-600 flex items-center justify-center cursor-pointer" :for="'mfile-'+cfg.type+'-'+item.id" title="選擇照片">
-                                                            <i class="fa-solid fa-image"></i>
-                                                        </label>
-                                                        <input class="mobile-photo-upload-input" :id="'mfile-'+cfg.type+'-'+item.id" type="file" accept="image/*" multiple @change="uploadMobilePhoto($event,item,cfg.type)">
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </template>
+                                            </template>
+                                        </div>
                                     </div>
                                 </article>
                             </template>
@@ -1464,7 +1520,7 @@
                                         </div>
                                     </div>
                                     <div class="text-center text-[10px] text-slate-400 mt-1.5">
-                                        顯示 <span x-text="((currentPage-1)*pageSize)+1"></span>–<span x-text="Math.min(currentPage*pageSize, filteredItems.length)"></span> / <span x-text="filteredItems.length"></span> 筆
+                                        顯示 <span x-text="filteredItems.length ? ((currentPage-1)*pageSize)+1 : 0"></span>–<span x-text="Math.min(currentPage*pageSize, filteredItems.length)"></span> / <span x-text="filteredItems.length"></span> 筆
                                     </div>
                                 </div>
                             </template>
@@ -2274,6 +2330,18 @@
                 </div>
             </div>
 
+            <div class="photo-type-tabs flex items-center gap-1 px-3 sm:px-6 py-2 border-b border-slate-100 bg-white overflow-x-auto">
+                <template x-for="cfg in [
+                    {type:'defect', label:'缺失', cls:'bg-amber-50 text-amber-700 border-amber-100'},
+                    {type:'repair', label:'修繕', cls:'bg-blue-50 text-blue-700 border-blue-100'},
+                    {type:'inspection', label:'工檢', cls:'bg-emerald-50 text-emerald-700 border-emerald-100'}
+                ]" :key="'photo-tab-'+cfg.type">
+                    <button type="button" @click="currentPhotoType=cfg.type; activePhotoIndex=0" class="shrink-0 px-3 py-1.5 rounded-lg border text-[10px] sm:text-xs font-semibold transition" :class="currentPhotoType===cfg.type ? cfg.cls : 'bg-slate-50 text-slate-500 border-slate-200'">
+                        <span x-text="cfg.label"></span><span class="ml-0.5" x-text="'(' + ((currentPhotoItem[cfg.type+'Photos'] || []).length) + ')'" ></span>
+                    </button>
+                </template>
+            </div>
+
             <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
                 <div class="lg:col-span-8 bg-slate-900 p-2 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[320px] sm:min-h-[480px]">
 
@@ -2487,28 +2555,28 @@
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">空間位置</label>
-                        <select x-model="editItemForm.space" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                        <select :value="editItemForm.space || ''" @change="editItemForm.space = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">工種/類別</label>
-                        <select x-model="editItemForm.category" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                        <select :value="editItemForm.category || ''" @change="editItemForm.category = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">驗收方法</label>
-                        <select x-model="editItemForm.method" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                        <select :value="editItemForm.method || ''" @change="editItemForm.method = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">戶別</label>
-                        <select x-model="editItemForm.unit" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                        <select :value="editItemForm.unit || ''" @change="editItemForm.unit = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
                         </select>
                     </div>
@@ -4488,7 +4556,27 @@
                 },
 
                 openEditModal(item) {
-                    this.editItemForm = JSON.parse(JSON.stringify(item));
+                    const clone = JSON.parse(JSON.stringify(item || {}));
+
+                    // 編輯時永遠以目前項目的實際值為準。若既有資料的值已不在設定清單，
+                    // 先補回選項，避免原生 select 因找不到 value 而自動顯示第一格（例如玄關）。
+                    const ensureOption = (listName, value) => {
+                        if (!value) return;
+                        const list = Array.isArray(this[listName]) ? this[listName] : [];
+                        if (!list.includes(value)) this[listName] = [value, ...list];
+                    };
+                    ensureOption('spaceList', clone.space);
+                    ensureOption('categoryList', clone.category);
+                    ensureOption('methodList', clone.method);
+                    ensureOption('unitList', clone.unit);
+
+                    this.editItemForm = {
+                        ...clone,
+                        space: clone.space || '',
+                        category: clone.category || '',
+                        method: clone.method || '',
+                        unit: clone.unit || ''
+                    };
                     this.showEditItemModalFlag = true;
                 },
 
