@@ -2441,7 +2441,7 @@
                                 <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
                                     <i class="fa-solid fa-upload"></i>
                                     <span>選擇照片檔案上傳</span>
-                                    <input type="file" accept="image/*" multiple class="hidden" @change="uploadPhotosFromInput($event)">
+                                    <input type="file" accept="image/*" class="hidden" @change="uploadPhotosFromInput($event)">
                                 </label>
                             </div>
                         </template>
@@ -2533,7 +2533,8 @@
 
                     <div class="md:col-span-2 space-y-1.5">
                         <label class="block text-sm font-semibold text-slate-700">備註說明</label>
-                        <textarea x-model="newItemForm.remark" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="輸入其他備註事項..."></textarea>
+                        <textarea x-model="newItemForm.remark" maxlength="50" @input="newItemForm.remark = String(newItemForm.remark || '').slice(0, 50)" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="輸入其他備註事項...（最多50字）"></textarea>
+                        <div class="text-[10px] text-slate-400 text-right"><span x-text="String(newItemForm.remark || '').length"></span>/50</div>
                     </div>
 
                     <div class="md:col-span-2 space-y-2 pt-2 border-t border-slate-100">
@@ -2550,7 +2551,7 @@
                                 </label>
                                 <label class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
                                     <i class="fa-solid fa-upload"></i><span>選擇照片</span>
-                                    <input type="file" accept="image/*" multiple class="hidden" @change="uploadNewItemPhotos($event)">
+                                    <input type="file" accept="image/*" class="hidden" @change="uploadNewItemPhotos($event)">
                                 </label>
                             </div>
                             <p class="text-xs text-slate-400 leading-5">或將照片拖曳至此處新增，也可直接在此處貼上剪貼簿圖片</p>
@@ -2656,7 +2657,8 @@
 
                     <div class="md:col-span-2 space-y-1.5">
                         <label class="block font-semibold text-slate-700">備註說明</label>
-                        <textarea x-model="editItemForm.remark" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+                        <textarea x-model="editItemForm.remark" maxlength="50" @input="editItemForm.remark = String(editItemForm.remark || '').slice(0, 50)" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
+                        <div class="text-[10px] text-slate-400 text-right"><span x-text="String(editItemForm.remark || '').length"></span>/50</div>
                     </div>
                 </div>
             </div>
@@ -2681,11 +2683,12 @@
             <div class="space-y-3 max-h-60 overflow-y-auto">
                 <template x-for="(opt, idx) in tempOptionList" :key="idx">
                     <div class="flex items-center space-x-2">
-                        <input type="text" x-model="tempOptionList[idx]" class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                        <input type="text" x-model="tempOptionList[idx]" maxlength="18" class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
                         <button @click="removeOptionItem(idx)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
                 </template>
             </div>
+            <p class="text-[10px] text-slate-400">每個選項最多 18 個字元。</p>
             <button @click="addOptionItem()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
                 <i class="fa-solid fa-plus"></i><span>新增一項</span>
             </button>
@@ -4565,28 +4568,46 @@
                     }
                     const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith('image/'));
                     if (!files.length || !this.currentPhotoItem) return;
+
+                    // 每一類照片只保留 1 張；若選了多張，只取第一張。
+                    const file = files[0];
+                    if (files.length > 1) {
+                        alert('每個項目的缺失、修繕、工檢照片各限 1 張，本次只使用第一張照片。');
+                    }
+
                     const listKey = this.currentPhotoType + 'Photos';
                     if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
+                    const oldPhotos = Array.isArray(this.currentPhotoItem[listKey]) ? [...this.currentPhotoItem[listKey]] : [];
 
-                    for (const file of files) {
-                        // 先保留壓縮預覽，雲端成功後再換成 Storage 路徑。
-                        const localPreview = await this.compressedPreviewDataUrl(file);
-                        if (localPreview) this.currentPhotoItem[listKey].push(localPreview);
-
-                        if (this.supabaseClient && this.authUser) {
-                            const photoUrl = await this.uploadImageToCloud(
-                                file,
-                                this.currentPhotoType,
-                                this.currentPhotoItem.id || 'draft'
-                            );
-                            if (photoUrl && localPreview) {
-                                const idx = this.currentPhotoItem[listKey].lastIndexOf(localPreview);
-                                if (idx !== -1) this.currentPhotoItem[listKey].splice(idx, 1, photoUrl);
-                            } else if (photoUrl) {
-                                this.currentPhotoItem[listKey].push(photoUrl);
-                            }
+                    // 先上傳新照片，成功後才刪除舊照片，避免新照片上傳失敗造成資料遺失。
+                    let replacement = null;
+                    if (this.supabaseClient && this.authUser) {
+                        replacement = await this.uploadImageToCloud(
+                            file,
+                            this.currentPhotoType,
+                            this.currentPhotoItem.id || 'draft'
+                        );
+                        if (!replacement) return;
+                    } else {
+                        replacement = await this.compressedPreviewDataUrl(file);
+                        if (!replacement) {
+                            alert('照片預覽建立失敗，請重新選擇照片。');
+                            return;
                         }
                     }
+
+                    this.currentPhotoItem[listKey] = [replacement];
+
+                    const oldStoragePhotos = oldPhotos.filter(photo => photo && !String(photo).startsWith('data:') && !String(photo).startsWith('http'));
+                    if (oldStoragePhotos.length && this.supabaseClient) {
+                        try {
+                            await this.removeStoragePhotos(oldStoragePhotos);
+                        } catch (err) {
+                            console.warn('舊照片刪除失敗，已保留新照片:', err);
+                        }
+                    }
+
+                    this.activePhotoIndex = 0;
                     this.saveProjectsToStorage();
                 },
 
@@ -4763,20 +4784,32 @@
                     const files = Array.from(fileList || []).filter(f => f && f.type?.startsWith('image/'));
                     if (!files.length) return;
 
-                    for (const file of files) {
-                        // 先產生壓縮後的本地預覽，使用者可立刻看到，不會因 Storage 延遲而空白。
-                        const localPreview = await this.compressedPreviewDataUrl(file);
-                        if (localPreview) this.newItemForm.defectPhotos.push(localPreview);
+                    const file = files[0];
+                    if (files.length > 1) {
+                        alert('新增驗屋缺失項目的缺失照片限 1 張，本次只使用第一張照片。');
+                    }
+                    const oldPhotos = Array.isArray(this.newItemForm.defectPhotos) ? [...this.newItemForm.defectPhotos] : [];
 
-                        // 已登入時再同步到 Supabase Storage；成功後以雲端路徑取代本地預覽。
-                        if (this.supabaseClient && this.authUser) {
-                            const photoUrl = await this.uploadImageToCloud(file, 'defect', 'draft');
-                            if (photoUrl && localPreview) {
-                                const idx = this.newItemForm.defectPhotos.lastIndexOf(localPreview);
-                                if (idx !== -1) this.newItemForm.defectPhotos.splice(idx, 1, photoUrl);
-                            } else if (photoUrl) {
-                                this.newItemForm.defectPhotos.push(photoUrl);
-                            }
+                    let replacement = null;
+                    if (this.supabaseClient && this.authUser) {
+                        replacement = await this.uploadImageToCloud(file, 'defect', 'draft');
+                        if (!replacement) return;
+                    } else {
+                        replacement = await this.compressedPreviewDataUrl(file);
+                        if (!replacement) {
+                            alert('照片預覽建立失敗，請重新選擇照片。');
+                            return;
+                        }
+                    }
+
+                    this.newItemForm.defectPhotos = [replacement];
+
+                    const oldStoragePhotos = oldPhotos.filter(photo => photo && !String(photo).startsWith('data:') && !String(photo).startsWith('http'));
+                    if (oldStoragePhotos.length && this.supabaseClient) {
+                        try {
+                            await this.removeStoragePhotos(oldStoragePhotos);
+                        } catch (err) {
+                            console.warn('舊照片刪除失敗，已保留新照片:', err);
                         }
                     }
                 },
@@ -4843,7 +4876,7 @@
                         dueDate: this.newItemForm.dueDate,
                         completeDate: '',
                         inspector: this.currentRoleName(),
-                        remark: this.newItemForm.remark,
+                        remark: String(this.newItemForm.remark || '').slice(0, 50),
                         defectPhotos: [...this.newItemForm.defectPhotos],
                         repairPhotos: [],
                         inspectionPhotos: [],
@@ -4884,7 +4917,8 @@
                         space: clone.space || '',
                         category: clone.category || '',
                         method: clone.method || '',
-                        unit: clone.unit || ''
+                        unit: clone.unit || '',
+                        remark: String(clone.remark || '').slice(0, 50)
                     };
                     this.showEditItemModalFlag = true;
                 },
@@ -4899,6 +4933,7 @@
                     const previousItem = JSON.parse(JSON.stringify(this.items[index]));
                     const nextItem = {
                         ...this.editItemForm,
+                        remark: String(this.editItemForm.remark || '').slice(0, 50),
                         projectId: this.selectedProjectId,
                         updatedAt: new Date().toISOString()
                     };
@@ -4950,7 +4985,9 @@
                 },
 
                 saveOptionEdit() {
-                    const filtered = this.tempOptionList.map(s => s.trim()).filter(Boolean);
+                    const filtered = this.tempOptionList.map(s => String(s || '').trim()).filter(Boolean);
+                    const overLimit = filtered.find(s => s.length > 18);
+                    if (overLimit) { alert('每個選項最多 18 個字元，請縮短後再儲存。'); return; }
                     if (this.optionEditTargetKey === 'space') this.spaceList = filtered;
                     if (this.optionEditTargetKey === 'category') this.categoryList = filtered;
                     if (this.optionEditTargetKey === 'method') this.methodList = filtered;
