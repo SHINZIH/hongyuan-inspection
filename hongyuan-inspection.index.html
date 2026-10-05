@@ -90,7 +90,7 @@
         .sidebar-footer .text-emerald-400 { color:#2b7a7a !important; }
         .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .app-filterbar { align-items: stretch; }
-        .mobile-sidebar-backdrop { background: rgba(15,23,42,.42); backdrop-filter: blur(2px); }
+        .mobile-sidebar-backdrop { background: rgba(15,23,42,.18); backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
         .auth-shell { background: radial-gradient(circle at top, #123451 0%, #071321 45%, #02070e 100%) !important; }
         .auth-card {
             border: 1px solid rgba(148,163,184,.18) !important;
@@ -330,7 +330,7 @@
                 max-width: 304px !important;
                 height: 100dvh !important;
                 margin: 0 !important;
-                z-index: 70 !important;
+                z-index: 100 !important;
                 transform: translateX(-105%) !important;
                 transition: transform .22s ease !important;
             }
@@ -357,7 +357,7 @@
                 min-height: 48px !important;
                 right: 14px !important;
                 bottom: calc(14px + env(safe-area-inset-bottom)) !important;
-                z-index: 80 !important;
+                z-index: 110 !important;
             }
             .mobile-sidebar-backdrop {
                 display: block !important;
@@ -365,10 +365,17 @@
                 inset: 0 !important;
                 z-index: 60 !important;
             }
+            .mobile-sidebar-backdrop {
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                background: rgba(15,23,42,.18) !important;
+            }
+
             .app-header {
                 width: 100% !important;
                 flex: 0 0 auto !important;
             }
+
             .app-header-inner {
                 width: 100% !important;
                 max-width: none !important;
@@ -579,6 +586,34 @@
                 <p class="text-xs text-slate-400 mt-2">安全登入、訪客瀏覽與新帳號註冊</p>
             </div>
 
+            <template x-if="showSupabaseSetup">
+                <div class="mt-6 p-4 rounded-2xl bg-slate-950/55 border border-amber-300/20 space-y-3">
+                    <div>
+                        <div class="flex items-center gap-2 text-amber-200 font-semibold text-sm">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>首次使用：設定雲端連線</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                            此設定只需要第一次輸入。系統會儲存在目前瀏覽器的本機儲存空間；之後即可直接登入。
+                        </p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Supabase Project URL</label>
+                        <input type="url" x-model="supabaseUrl" placeholder="https://xxxx.supabase.co" class="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Supabase Anon Key</label>
+                        <input type="password" x-model="supabaseKey" placeholder="貼上 Supabase 的 anon / publishable key" class="w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none">
+                    </div>
+                    <button type="button" @click="saveSupabaseConfig()" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold">
+                        <i class="fa-solid fa-plug mr-1"></i>儲存設定並建立連線
+                    </button>
+                    <p class="text-[10px] text-slate-500 leading-relaxed">
+                        請只使用 Supabase 的公開 Anon / Publishable Key，絕對不要放入 service_role key。
+                    </p>
+                </div>
+            </template>
+
             <div class="mt-6 grid grid-cols-2 rounded-xl bg-slate-950/45 p-1 border border-slate-700/60">
                 <button type="button" class="auth-mode-tab rounded-lg py-2.5 text-xs font-semibold" :aria-selected="!showRegisterForm" @click="showRegisterForm = false; registerErrorMsg = ''; loginErrorMsg = ''">
                     <i class="fa-solid fa-right-to-bracket mr-1"></i>帳號登入
@@ -725,7 +760,7 @@
                         <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'inspection' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="items.length"></span>
                     </a>
                     
-                    <a href="#" @click.prevent="activeTab = 'projects'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'projects' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                    <a href="#" @click.prevent="openProjectsTab(); mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'projects' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
                         <div class="flex items-center space-x-3">
                             <i class="fa-solid fa-folder-open w-5 text-center"></i>
                             <span>專案清單管理</span>
@@ -1677,7 +1712,7 @@
     </div>
 
     <!-- 📄 PDF 報告匯出與設定浮動視窗 (PDF Export Modal) -->
-    <div x-show="showPdfExportModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showPdfExportModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col p-6 space-y-4 max-h-[92vh]" @click.stop>
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
@@ -1906,7 +1941,7 @@
     </div>
 
     <!-- Password Modal -->
-    <div x-show="showPasswordModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showPasswordModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <div class="text-center space-y-1">
                 <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-sm">
@@ -1926,7 +1961,7 @@
     </div>
 
     <!-- 圖庫模式彈跳視窗 -->
-    <div x-show="showGalleryModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showGalleryModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div class="flex items-center space-x-4">
@@ -2125,7 +2160,7 @@
     </div>
 
     <!-- 新增驗屋缺失項目浮動視窗 -->
-    <div x-show="showNewItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showNewItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
@@ -2238,7 +2273,7 @@
     </div>
 
     <!-- 編輯項目 Modal -->
-    <div x-show="showEditItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showEditItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
@@ -2327,7 +2362,7 @@
     </div>
 
     <!-- 編輯選項選單 Modal -->
-    <div x-show="showOptionEditModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showOptionEditModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 class="text-base font-bold text-slate-800" x-text="'編輯 ' + optionEditTitle + ' 選項'"></h3>
@@ -2352,7 +2387,7 @@
     </div>
 
     <!-- 編輯專案名稱 Modal -->
-    <div x-show="showEditProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showEditProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <h3 class="text-base font-bold text-slate-800">變更當前專案名稱</h3>
             <input type="text" x-model="tempProjectNameInput" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500">
@@ -2364,7 +2399,7 @@
     </div>
 
     <!-- 建立新專案 Modal -->
-    <div x-show="showCreateProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" style="display: none;">
+    <div x-show="showCreateProjectModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <i class="fa-solid fa-folder-plus text-emerald-600"></i>
@@ -2394,6 +2429,7 @@
                 // Supabase 雲端對接與 Realtime 廣播狀態
                 supabaseUrl: localStorage.getItem('hongyuan_supabase_url') || 'https://cpgdfijbebqfvvbnjsqz.supabase.co',
                 supabaseKey: localStorage.getItem('hongyuan_supabase_key') || '',
+                showSupabaseSetup: false,
                 supabaseClient: null,
                 realtimeChannel: null,
                 isRealtimeConnected: false,
@@ -2557,6 +2593,7 @@
                     const savedKey = localStorage.getItem('hongyuan_supabase_key');
                     if (savedUrl) this.supabaseUrl = savedUrl;
                     if (savedKey) this.supabaseKey = savedKey;
+                    this.showSupabaseSetup = !this.supabaseKey;
 
                     const savedUsers = localStorage.getItem('hongyuan_system_users');
                     if (savedUsers) {
@@ -2794,11 +2831,14 @@
                         // 第一次開啟網站時，如果 Supabase client 尚未建立，先建立。
                         if (!this.supabaseClient) {
                             if (!this.supabaseUrl || !this.supabaseKey) {
-                                throw new Error('尚未設定 Supabase Project URL / Anon Key。請先確認瀏覽器已保存 Supabase 設定。');
+                                this.showSupabaseSetup = true;
+                                this.loginErrorMsg = '第一次使用本系統，請先完成 Supabase 連線設定。';
+                                return;
                             }
                             this.initSupabase();
                             if (!this.supabaseClient) {
-                                throw new Error('Supabase 尚未完成初始化，請重新整理頁面後再試。');
+                                this.loginErrorMsg = 'Supabase 尚未完成初始化，請確認設定後重新整理頁面。';
+                                return;
                             }
                         }
 
@@ -2928,7 +2968,15 @@
                     }
 
                     this.initSupabase();
-                    alert('Supabase 設定已儲存，正在建立雲端連線。');
+                    if (this.supabaseClient) {
+                        this.showSupabaseSetup = false;
+                        this.loginErrorMsg = '';
+                        this.registerErrorMsg = '';
+                        alert('Supabase 設定已儲存，雲端連線已建立。現在可以登入。');
+                    } else {
+                        this.showSupabaseSetup = true;
+                        alert('Supabase 設定已儲存，但目前無法建立連線，請確認 URL 與 Anon Key。');
+                    }
                 },
 
                 mapDbItem(row) {
@@ -3248,6 +3296,16 @@
                         } else {
                             const mapped = this.mapDbItem(row);
                             mapped.projectId = row.project_id;
+
+                            // 若瀏覽器剛完成編輯，而 Realtime 還送來較舊的資料，
+                            // 不允許舊資料把空間/工種/驗屋方法/戶別覆蓋回預設值。
+                            const existing = proj ? (proj.items || []).find(i => i.id === row.id) : null;
+                            const localUpdated = existing?.updatedAt ? Date.parse(existing.updatedAt) : 0;
+                            const cloudUpdated = mapped.updatedAt ? Date.parse(mapped.updatedAt) : 0;
+                            if (existing && localUpdated && cloudUpdated && cloudUpdated < localUpdated) {
+                                return;
+                            }
+
                             this.cloudItemSnapshot[row.id] = this.cloudItemSignature(mapped);
 
                             if (proj) {
@@ -3547,19 +3605,47 @@
                     });
                 },
 
+                // 進入專案管理時，永遠恢復目前作用中的專案，而不是回到第一筆。
+                openProjectsTab() {
+                    const rememberedId = localStorage.getItem('hongyuan_selected_project_id');
+                    const targetId = rememberedId && this.projects.some(p => p.id === rememberedId)
+                        ? rememberedId
+                        : this.selectedProjectId;
+
+                    const target = this.projects.find(p => p.id === targetId) || this.projects[0];
+                    if (target) {
+                        this.selectedProjectId = target.id;
+                        this.currentProjectName = target.name;
+                        this.items = JSON.parse(JSON.stringify(target.items || []));
+                        this.analyticsProjectId = target.id;
+                        localStorage.setItem('hongyuan_selected_project_id', target.id);
+                    }
+
+                    this.activeTab = 'projects';
+                },
+
                 // 安全切換專案：畫面、專案清單、統計儀表板共用同一個作用中專案。
+                // 注意：專案下拉選單使用 :value + @change，而不是 x-model，
+                // 讓這裡執行時 selectedProjectId 仍然代表「切換前」的專案，
+                // 避免把目前專案 B 的資料誤寫進使用者剛選取的專案 A。
                 switchProjectById(targetId) {
                     if (!targetId) return;
 
+                    const currentProjectId = this.selectedProjectId;
                     const targetProj = this.projects.find(x => x.id === targetId);
                     if (!targetProj) return;
 
-                    const currentIdx = this.projects.findIndex(p => p.id === this.selectedProjectId);
-                    if (currentIdx !== -1) {
-                        this.projects[currentIdx].items = JSON.parse(JSON.stringify(this.items));
-                        this.projects[currentIdx].name = this.currentProjectName;
+                    // 先保存切換前專案的最新畫面資料，再讀取目標專案。
+                    // 以 ID 鎖定來源專案，絕不使用 targetProj 當作來源。
+                    if (currentProjectId && currentProjectId !== targetProj.id) {
+                        const currentProj = this.projects.find(p => p.id === currentProjectId);
+                        if (currentProj) {
+                            currentProj.items = JSON.parse(JSON.stringify(this.items));
+                            currentProj.name = this.currentProjectName;
+                        }
                     }
 
+                    // 以目標專案自己的資料建立新畫面狀態，避免與來源物件共用參照。
                     this.selectedProjectId = targetProj.id;
                     this.currentProjectName = targetProj.name;
                     this.items = JSON.parse(JSON.stringify(targetProj.items || []));
@@ -3933,15 +4019,15 @@
                 },
 
                 getNextItemCode() {
-                    // 新增項目編號只使用純數字：第一筆為 01，下一筆為 02，依目前專案獨立遞增。
-                    const seqKey = `hongyuan_new_item_seq_${this.selectedProjectId || 'default'}`;
-                    const stored = Number(localStorage.getItem(seqKey) || 0);
-                    const usedNewCodes = this.items
+                    // 編號依「目前專案現有的純數字編號」重新計算。
+                    // 因此全部刪除後下一筆會回到 01；若目前有 01、02，下一筆為 03。
+                    const usedNumbers = this.items
                         .map(item => String(item?.code || '').trim())
-                        .filter(code => /^\d{2,}$/.test(code))
+                        .filter(code => /^\d+$/.test(code))
                         .map(Number)
                         .filter(Number.isFinite);
-                    const nextNumber = Math.max(stored + 1, usedNewCodes.length ? Math.max(...usedNewCodes) + 1 : 1);
+
+                    const nextNumber = usedNumbers.length ? Math.max(...usedNumbers) + 1 : 1;
                     return String(nextNumber).padStart(2, '0');
                 },
 
@@ -3968,12 +4054,10 @@
                         remark: this.newItemForm.remark,
                         defectPhotos: [...this.newItemForm.defectPhotos],
                         repairPhotos: [],
-                        inspectionPhotos: []
+                        inspectionPhotos: [],
+                        updatedAt: new Date().toISOString()
                     };
                     this.items.push(newItem);
-
-                    const seqKey = `hongyuan_new_item_seq_${this.selectedProjectId || 'default'}`;
-                    localStorage.setItem(seqKey, String(parseInt(nextCode, 10) || 1));
 
                     this.lastNewItemDefaults = {
                         space: newItem.space,
@@ -3995,7 +4079,11 @@
                 saveEditItem() {
                     const index = this.items.findIndex(i => i.id === this.editItemForm.id);
                     if (index !== -1) {
-                        this.items[index] = { ...this.editItemForm };
+                        this.items[index] = {
+                            ...this.editItemForm,
+                            projectId: this.selectedProjectId,
+                            updatedAt: new Date().toISOString()
+                        };
                         this.saveProjectsToStorage();
                     }
                     this.showEditItemModalFlag = false;
