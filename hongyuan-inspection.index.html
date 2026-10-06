@@ -3,12 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>行動化驗屋與修繕追蹤系統｜Responsive v6 Mobile Fixed</title>
+    <title>行動化驗屋與修繕追蹤系統｜Responsive v18 PDF Import</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF 匯出核心套件 -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- PDF 智慧匯入：優先使用網站同資料夾的本地 PDF.js；找不到才退回 CDN。
+         若要讓「PDF 本身的辨識」完全不依賴網路，請把 pdf.min.js 與 pdf.worker.min.js 放到 ./pdfjs/。 -->
+    <script>
+        window.__housecheckPdfJsInfo = { source: '', workerSrc: '', loading: null };
+        window.__housecheckLoadPdfJs = function () {
+            if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+            if (window.__housecheckPdfJsInfo.loading) return window.__housecheckPdfJsInfo.loading;
+
+            const candidates = [
+                { src: './pdfjs/pdf.min.js', worker: './pdfjs/pdf.worker.min.js', source: 'local' },
+                { src: './vendor/pdfjs/pdf.min.js', worker: './vendor/pdfjs/pdf.worker.min.js', source: 'local-vendor' },
+                { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js', source: 'cdn' }
+            ];
+
+            window.__housecheckPdfJsInfo.loading = (async () => {
+                for (const candidate of candidates) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = candidate.src;
+                            script.async = true;
+                            script.onload = resolve;
+                            script.onerror = () => reject(new Error('load failed'));
+                            document.head.appendChild(script);
+                        });
+                        if (window.pdfjsLib) {
+                            window.__housecheckPdfJsInfo.source = candidate.source;
+                            window.__housecheckPdfJsInfo.workerSrc = candidate.worker;
+                            return window.pdfjsLib;
+                        }
+                    } catch (e) {
+                        // 繼續嘗試下一個來源。
+                    }
+                }
+                throw new Error('PDF.js 無法載入。若要離線辨識 PDF，請將 pdf.min.js 與 pdf.worker.min.js 放在網站的 ./pdfjs/ 資料夾；若使用線上模式，請確認網路可連線。');
+            })();
+            return window.__housecheckPdfJsInfo.loading;
+        };
+    </script>
     <!-- Supabase JS SDK 對接雲端儲存與即時連線 -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -693,6 +732,26 @@
             }
         }
 
+
+        /* ===== PDF 智慧匯入 UI ===== */
+        .pdf-import-preview-table th,
+        .pdf-import-preview-table td {
+            white-space: nowrap;
+        }
+        .pdf-import-thumb {
+            width: 54px;
+            height: 54px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #f1f5f9;
+        }
+        @media (max-width: 767px) {
+            .pdf-import-modal-card { max-height: 92vh !important; }
+            .pdf-import-preview-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .pdf-import-preview-table input { min-width: 150px; }
+            .pdf-import-preview-table .pdf-import-name { min-width: 220px; }
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased" x-data="inspectionApp()">
@@ -2015,6 +2074,14 @@
                     PDF 固定版型：第 1 頁固定 2 個缺失，後續每頁固定 3 個缺失。
                 </div>
 
+                <button type="button" @click="openPdfImportModal()" class="w-full py-2.5 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-import"></i>從 PDF 智慧匯入驗屋缺失與初驗照片
+                </button>
+                <div class="text-[10px] text-slate-400 leading-relaxed">
+                    PDF 辨識器會優先使用網站內的 <span class="font-semibold">./pdfjs/</span>，找不到時才使用線上 PDF.js。
+                    要完全離線辨識 PDF，請在網站資料夾放入 <span class="font-mono">pdf.min.js</span> 與 <span class="font-mono">pdf.worker.min.js</span>。
+                </div>
+
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">專案目前標題：</label>
                     <input type="text" x-model="pdfForm.title" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-slate-50 font-bold text-slate-800" placeholder="例如：國泰央北建案 B1 區">
@@ -2144,6 +2211,144 @@
                 <button @click="exportToPdf()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm flex items-center justify-center space-x-1.5">
                     <i class="fa-solid fa-download"></i>
                     <span>產生並下載 PDF</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📥 PDF 智慧匯入：針對「宏遠驗屋缺失報告說明書」類型版型，使用文字相對位置＋照片欄位裁切建立驗屋項目 -->
+    <div x-show="showPdfImportModalFlag" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 sm:p-4" style="display:none;">
+        <div class="pdf-import-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh]" @click.stop>
+            <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-import text-blue-600"></i>
+                        <span>從 PDF 智慧匯入驗屋缺失</span>
+                    </h2>
+                    <p class="text-[11px] text-slate-500 mt-1">讀取「檢測區域／缺失說明／初驗照片」的相對位置，不靠固定頁碼；先預覽確認，再一次建立至目前專案。</p>
+                </div>
+                <button @click="closePdfImportModal()" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label class="md:col-span-2 block">
+                        <span class="block text-xs font-semibold text-slate-700 mb-1">PDF 檔案</span>
+                        <input type="file" accept="application/pdf,.pdf" @change="handlePdfImportFile($event)" class="w-full text-sm border border-slate-300 rounded-xl bg-white p-2">
+                    </label>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <label>
+                            <span class="block text-xs font-semibold text-slate-700 mb-1">開始頁</span>
+                            <input type="number" min="1" :max="pdfImportTotalPages || 9999" x-model.number="pdfImportStartPage" @input="pdfImportRangeManual = true" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                        </label>
+                        <label>
+                            <span class="block text-xs font-semibold text-slate-700 mb-1">結束頁</span>
+                            <input type="number" min="1" :max="pdfImportTotalPages || 9999" x-model.number="pdfImportEndPage" @input="pdfImportRangeManual = true" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                        </label>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <label>
+                            <span class="block text-xs font-semibold text-slate-700 mb-1">匯入類別／工種（最多18字）</span>
+                            <input type="text" maxlength="18" x-model="pdfImportCategory" @input="pdfImportCategory = String(pdfImportCategory || '').slice(0,18)" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" placeholder="例如：消防">
+                        </label>
+                        <label>
+                            <span class="block text-xs font-semibold text-slate-700 mb-1">預設戶別（可留空）</span>
+                            <input type="text" maxlength="18" x-model="pdfImportUnit" @input="pdfImportUnit = String(pdfImportUnit || '').slice(0,18)" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" placeholder="例如：公設">
+                        </label>
+                    </div>
+
+                    <label>
+                        <span class="block text-xs font-semibold text-slate-700 mb-1">預設驗收方法</span>
+                        <select x-model="pdfImportMethod" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white">
+                            <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
+                        </select>
+                    </label>
+
+                    <div class="md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-[11px] text-slate-600 space-y-1">
+                        <div class="font-semibold text-blue-700"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>自動對應規則</div>
+                        <div>1. 「檢測區域」→ 網站的「空間位置」；若與目前共用空間選項相符，直接套用，否則保留 PDF 原文字供你編輯。</div>
+                        <div>2. 「缺失說明」→ 網站的「項目名稱」。</div>
+                        <div>3. 「初驗照片」→ 網站的「缺失照片」，每筆只帶入 1 張。</div>
+                        <div>4. PDF 的勾選位置會嘗試對應「完全修復／部分修復／尚未修復」到網站修繕狀態。</div>
+                    </div>
+                </div>
+
+                <div x-show="pdfImportStatus" class="rounded-xl border px-3 py-2 text-xs" :class="pdfImportError ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'">
+                    <div x-text="pdfImportStatus"></div>
+                    <div class="mt-1 text-[10px] text-slate-400" x-show="pdfImportFileName" x-text="pdfImportFileName + (pdfImportTotalPages ? '｜共 ' + pdfImportTotalPages + ' 頁' : '')"></div>
+                    <div class="mt-1 text-[10px] text-slate-400" x-show="pdfImportDiagnostics.pagesScanned" x-text="'結構偵測：' + pdfImportDiagnostics.structurePages + ' 頁／記錄：' + pdfImportDiagnostics.records + ' 筆'"></div>
+                </div>
+
+                <div x-show="pdfImportBusy" class="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                    <div class="flex justify-between items-center text-xs font-semibold text-blue-700">
+                        <span x-text="pdfImportProgressLabel"></span>
+                        <span x-text="pdfImportProgress + '%'">0%</span>
+                    </div>
+                    <div class="mt-2 h-2 rounded-full bg-blue-100 overflow-hidden">
+                        <div class="h-full bg-blue-600 transition-all" :style="'width:' + pdfImportProgress + '%'" ></div>
+                    </div>
+                </div>
+
+                <template x-if="pdfImportRecords.length > 0 && !pdfImportBusy">
+                    <div class="space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="text-xs text-slate-600">
+                                <span class="font-bold text-slate-800">偵測到 <span x-text="pdfImportRecords.length"></span> 筆</span>，
+                                <span>有照片 <span x-text="pdfImportRecords.filter(r => r.photoDataUrl).length"></span> 張</span>，
+                                <span>已勾選 <span x-text="pdfImportRecords.filter(r => r.selected).length"></span> 筆</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="pdfImportRecords.forEach(r => r.selected = true)" class="px-2.5 py-1.5 text-[11px] border border-slate-300 rounded-lg bg-white">全選</button>
+                                <button @click="pdfImportRecords.forEach(r => r.selected = false)" class="px-2.5 py-1.5 text-[11px] border border-slate-300 rounded-lg bg-white">全不選</button>
+                            </div>
+                        </div>
+
+                        <div class="pdf-import-preview-wrap border border-slate-200 rounded-xl">
+                            <table class="pdf-import-preview-table min-w-[900px] w-full text-xs">
+                                <thead class="bg-slate-50 border-b border-slate-200">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">匯入</th>
+                                        <th class="px-3 py-2 text-left">頁</th>
+                                        <th class="px-3 py-2 text-left">空間位置</th>
+                                        <th class="px-3 py-2 text-left">項目名稱</th>
+                                        <th class="px-3 py-2 text-left">初驗照片</th>
+                                        <th class="px-3 py-2 text-left">修繕狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="(record, idx) in pdfImportRecords" :key="record.key">
+                                        <tr class="border-b border-slate-100 last:border-b-0 align-top">
+                                            <td class="px-3 py-2"><input type="checkbox" x-model="record.selected" class="w-4 h-4"></td>
+                                            <td class="px-3 py-2 font-mono text-slate-500" x-text="record.page"></td>
+                                            <td class="px-3 py-2">
+                                                <input type="text" maxlength="18" x-model="record.space" @input="record.space = String(record.space || '').slice(0,18)" class="w-full px-2 py-1.5 border border-slate-300 rounded-lg">
+                                                <div class="mt-1 text-[10px]" :class="record.spaceMapped ? 'text-emerald-600' : 'text-amber-600'" x-text="record.spaceMapped ? '已對應共用空間' : 'PDF 原文／請確認' "></div>
+                                            </td>
+                                            <td class="px-3 py-2"><input class="pdf-import-name w-full px-2 py-1.5 border border-slate-300 rounded-lg" type="text" x-model="record.name"></td>
+                                            <td class="px-3 py-2">
+                                                <template x-if="record.photoDataUrl"><img :src="record.photoDataUrl" class="pdf-import-thumb"></template>
+                                                <template x-if="!record.photoDataUrl"><div class="pdf-import-thumb flex items-center justify-center text-[10px] text-slate-400">無</div></template>
+                                            </td>
+                                            <td class="px-3 py-2"><span class="inline-flex px-2 py-1 rounded-full bg-amber-50 text-amber-700 font-semibold" x-text="record.repairStatus"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div class="px-4 sm:px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row gap-2 justify-end shrink-0">
+                <button @click="closePdfImportModal()" class="px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 bg-white">取消</button>
+                <button x-show="pdfImportFileName && !pdfImportBusy" @click="analyzePdfImportAgain()" class="px-4 py-2.5 border border-blue-200 rounded-xl text-sm text-blue-700 bg-blue-50">重新分析</button>
+                <button @click="importParsedPdfRecords()" :disabled="pdfImportBusy || !pdfImportRecords.some(r => r.selected)" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-cloud-arrow-up mr-1"></i>
+                    <span x-text="pdfImportBusy ? '處理中…' : '確認匯入 ' + pdfImportRecords.filter(r => r.selected).length + ' 筆'"></span>
                 </button>
             </div>
         </div>
@@ -2850,6 +3055,25 @@
                     photoTypes: ['defect', 'repair'],
                     scale: 100
                 },
+
+                // PDF 智慧匯入
+                showPdfImportModalFlag: false,
+                pdfImportFile: null,
+                pdfImportFileName: '',
+                pdfImportTotalPages: 0,
+                pdfImportStartPage: 5,
+                pdfImportEndPage: 0,
+                pdfImportRangeManual: false,
+                pdfImportDiagnostics: { pagesScanned: 0, structurePages: 0, regionLabels: 0, defectLabels: 0, photoLabels: 0, records: 0 },
+                pdfImportCategory: '',
+                pdfImportUnit: '',
+                pdfImportMethod: '目視檢驗',
+                pdfImportRecords: [],
+                pdfImportBusy: false,
+                pdfImportProgress: 0,
+                pdfImportProgressLabel: '',
+                pdfImportStatus: '',
+                pdfImportError: false,
 
                 // 篩選器
                 searchQuery: '',
@@ -4329,6 +4553,577 @@
                         return;
                     }
                     alert('只有 Owner（最高權限）帳號可以進入【系統參數設定】。請使用 Supabase Auth 的 Owner 帳號登入。');
+                },
+
+                // ===== PDF 智慧匯入 =====
+                openPdfImportModal() {
+                    this.showPdfExportModalFlag = false;
+                    this.showPdfImportModalFlag = true;
+                    this.pdfImportStatus = '';
+                    this.pdfImportError = false;
+                    this.pdfImportBusy = false;
+                    this.pdfImportProgress = 0;
+                    this.pdfImportProgressLabel = '';
+                    this.pdfImportRecords = [];
+                    this.pdfImportFile = null;
+                    this.pdfImportFileName = '';
+                    this.pdfImportTotalPages = 0;
+                    this.pdfImportStartPage = 5;
+                    this.pdfImportEndPage = 0;
+                    this.pdfImportRangeManual = false;
+                    this.pdfImportDiagnostics = { pagesScanned: 0, structurePages: 0, regionLabels: 0, defectLabels: 0, photoLabels: 0, records: 0 };
+                    const categoryMatch = (this.currentProjectName || '').match(/(?:\(|（)([^)）]+)(?:\)|）)/);
+                    const detectedCategoryText = categoryMatch ? categoryMatch[1].trim() : '';
+                    const categoryExisting = this.categoryList.find(c => this.normalizePdfImportText(c) === this.normalizePdfImportText(detectedCategoryText));
+                    this.pdfImportCategory = (categoryExisting || detectedCategoryText || (this.categoryList[0] || '')).slice(0, 18);
+                    this.pdfImportUnit = '';
+                    this.pdfImportMethod = this.methodList.includes('目視檢驗') ? '目視檢驗' : (this.methodList[0] || '');
+                },
+
+                closePdfImportModal() {
+                    if (this.pdfImportBusy) return;
+                    this.showPdfImportModalFlag = false;
+                    this.pdfImportRecords = [];
+                    this.pdfImportFile = null;
+                    this.pdfImportFileName = '';
+                    this.pdfImportTotalPages = 0;
+                    this.pdfImportRangeManual = false;
+                },
+
+                async waitForPdfJs() {
+                    if (window.pdfjsLib) return window.pdfjsLib;
+                    if (typeof window.__housecheckLoadPdfJs === 'function') {
+                        return await window.__housecheckLoadPdfJs();
+                    }
+                    for (let i = 0; i < 40; i++) {
+                        if (window.pdfjsLib) return window.pdfjsLib;
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }
+                    throw new Error('PDF.js 載入器未初始化，請重新載入頁面。');
+                },
+
+                normalizePdfImportText(value) {
+                    return String(value ?? '')
+                        .replace(/[\s\u00A0\u200B\uFEFF]/g, '')
+                        .replace(/[：:、，,。．.／/\\（）()【】\[\]《》<>]/g, '')
+                        .trim()
+                        .toLowerCase();
+                },
+
+                pdfImportTextHas(text, phrase) {
+                    const a = this.normalizePdfImportText(text);
+                    const b = this.normalizePdfImportText(phrase);
+                    return !!b && a.includes(b);
+                },
+
+                pdfImportConcatTexts(items) {
+                    const list = (items || []).slice().sort((a, b) => a.y - b.y || a.x - b.x);
+                    return list.map(i => String(i.text || '').trim()).filter(Boolean).join('').trim();
+                },
+
+                async getPdfPageTextItems(page) {
+                    const baseViewport = page.getViewport({ scale: 1 });
+                    // 關閉文字合併，避免「檢測區域／初驗照片／缺失說明」被合併到同一個 text item。
+                    const content = await page.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: true });
+                    return content.items.map((item, index) => {
+                        const str = String(item.str || '').trim();
+                        if (!str) return null;
+                        const point = baseViewport.convertToViewportPoint(item.transform[4], item.transform[5]);
+                        const fontHeight = Math.max(1, Math.abs(Number(item.transform?.[3] || item.height || 10)));
+                        return {
+                            index,
+                            text: str,
+                            x: Number(point[0] || 0),
+                            y: Number(point[1] || 0),
+                            width: Number(item.width || 0),
+                            height: fontHeight,
+                            bottom: Number(point[1] || 0) + fontHeight
+                        };
+                    }).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x);
+                },
+
+                findPdfImportAnchors(items, phrase) {
+                    const list = (items || []).slice().sort((a, b) => a.y - b.y || a.x - b.x);
+                    const target = this.normalizePdfImportText(phrase);
+                    if (!target) return [];
+
+                    // PDF.js 有些 PDF 會把中文標籤拆成多個 text item。
+                    // 例如「檢測區域」可能變成「檢」「測」「區」「域」四個 item，
+                    // 因此不能只檢查單一 item，還要把同一行的文字重新組合。
+                    const exact = list.filter(i => this.normalizePdfImportText(i.text) === target);
+                    if (exact.length) return exact;
+
+                    const direct = list.filter(i => this.pdfImportTextHas(i.text, phrase));
+                    if (direct.length) return direct;
+
+                    const hits = [];
+                    const rowTolerance = 4.5;
+
+                    for (let start = 0; start < list.length; start++) {
+                        const first = list[start];
+                        let combined = '';
+                        let lastY = first.y;
+
+                        for (let end = start; end < list.length; end++) {
+                            const item = list[end];
+
+                            // 只在同一文字列內合併，避免跨到下一列造成誤判。
+                            if (end > start && Math.abs(item.y - lastY) > rowTolerance) break;
+
+                            combined += String(item.text || '');
+                            lastY = item.y;
+
+                            if (this.normalizePdfImportText(combined).includes(target)) {
+                                hits.push({
+                                    ...first,
+                                    text: phrase,
+                                    width: Math.max(0, (item.x + item.width) - first.x),
+                                    _anchorCombined: true
+                                });
+                                break;
+                            }
+
+                            // 超過目標長度很多後仍沒有命中，就停止這個視窗。
+                            if (combined.length > phrase.length * 3 + 8) break;
+                        }
+                    }
+
+                    // 去除同一行重複命中的 anchor。
+                    const unique = [];
+                    const seen = new Set();
+                    for (const hit of hits) {
+                        const key = `${Math.round(hit.x * 10) / 10}|${Math.round(hit.y * 10) / 10}`;
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            unique.push(hit);
+                        }
+                    }
+                    return unique;
+                },
+
+                getPdfImportRepairStatus(items, startY, endY, pageWidth) {
+                    const labels = ['完全修復', '部分修復', '尚未修復'];
+                    const checkCandidates = (items || []).filter(i => i.x > pageWidth * 0.72 && i.y >= startY && i.y <= endY && /✓|✔|√/.test(i.text));
+                    if (!checkCandidates.length) return '待修繕';
+                    const labelItems = (items || []).filter(i => i.x > pageWidth * 0.72 && i.y >= startY && i.y <= endY && labels.some(label => this.pdfImportTextHas(i.text, label)));
+                    if (!labelItems.length) return '待修繕';
+                    const check = checkCandidates[0];
+                    const nearest = labelItems.slice().sort((a, b) => Math.abs(a.y - check.y) - Math.abs(b.y - check.y))[0];
+                    const label = labels.find(v => this.pdfImportTextHas(nearest.text, v)) || '';
+                    if (label === '完全修復') return '已完成';
+                    if (label === '部分修復') return '修繕中';
+                    return '待修繕';
+                },
+
+                async cropPdfImportPhoto(renderCanvas, baseWidth, baseHeight, recordTopY, recordBottomY) {
+                    // 本模板：初驗照片位於中央欄，照片本身通常比「初驗照片」文字更靠上，因此
+                    // 不再從 photoLabel 往下裁，改以整個缺失區塊的上下邊界裁切，再去除空白邊。
+                    const renderScale = renderCanvas.width / baseWidth;
+                    const x1 = Math.round(baseWidth * 0.355 * renderScale);
+                    const x2 = Math.round(baseWidth * 0.705 * renderScale);
+                    const y1 = Math.max(0, Math.round((recordTopY - 28) * renderScale));
+                    const y2 = Math.min(renderCanvas.height, Math.round((recordBottomY - 10) * renderScale));
+                    if (x2 <= x1 || y2 <= y1) return null;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = x2 - x1;
+                    canvas.height = y2 - y1;
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    ctx.drawImage(renderCanvas, x1, y1, x2 - x1, y2 - y1, 0, 0, canvas.width, canvas.height);
+
+                    // 嘗試排除上下/左右表格框線，保留中央最大的照片內容。
+                    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = image.data;
+                    let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
+                    const isContent = (p) => {
+                        const r = data[p], g = data[p + 1], b = data[p + 2];
+                        return (r < 242 || g < 242 || b < 242);
+                    };
+                    for (let y = 0; y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const p = (y * canvas.width + x) * 4;
+                            if (isContent(p)) {
+                                if (x < minX) minX = x;
+                                if (x > maxX) maxX = x;
+                                if (y < minY) minY = y;
+                                if (y > maxY) maxY = y;
+                            }
+                        }
+                    }
+                    if (maxX < minX || maxY < minY) return null;
+
+                    // 移除最外圈表格線後，如果內容仍足夠大，就取內容框；否則退回原裁切。
+                    const pad = 3;
+                    const bx1 = Math.max(0, minX + pad);
+                    const by1 = Math.max(0, minY + pad);
+                    const bx2 = Math.min(canvas.width, maxX + 1 - pad);
+                    const by2 = Math.min(canvas.height, maxY + 1 - pad);
+                    const cropW = bx2 - bx1;
+                    const cropH = by2 - by1;
+                    const useTrimmed = cropW > canvas.width * 0.35 && cropH > canvas.height * 0.35;
+                    const out = document.createElement('canvas');
+                    out.width = useTrimmed ? cropW : canvas.width;
+                    out.height = useTrimmed ? cropH : canvas.height;
+                    out.getContext('2d').drawImage(
+                        canvas,
+                        useTrimmed ? bx1 : 0,
+                        useTrimmed ? by1 : 0,
+                        useTrimmed ? cropW : canvas.width,
+                        useTrimmed ? cropH : canvas.height,
+                        0, 0, out.width, out.height
+                    );
+                    const blob = await new Promise(resolve => out.toBlob(resolve, 'image/jpeg', 0.90));
+                    if (!blob) return null;
+                    const dataUrl = await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => resolve(null);
+                        reader.readAsDataURL(blob);
+                    });
+                    return dataUrl ? { blob, dataUrl } : null;
+                },
+
+                async findPdfImportPageRange(pdf) {
+                    let first = 0;
+                    let last = 0;
+                    for (let p = 1; p <= pdf.numPages; p++) {
+                        const page = await pdf.getPage(p);
+                        const items = await this.getPdfPageTextItems(page);
+                        const text = items.map(i => i.text).join('');
+                        const norm = this.normalizePdfImportText(text);
+                        const hasRegion = norm.includes(this.normalizePdfImportText('檢測區域'));
+                        const hasDefect = norm.includes(this.normalizePdfImportText('缺失說明'));
+                        const hasInitialPhoto = norm.includes(this.normalizePdfImportText('初驗照片'));
+                        const hasReportSection = norm.includes(this.normalizePdfImportText('標的物檢驗相片及說明書'));
+                        if ((hasRegion && hasDefect) || (hasRegion && hasInitialPhoto) || hasReportSection) {
+                            if (!first) first = p;
+                            last = p;
+                        }
+                        page.cleanup();
+                    }
+                    return { first: first || 1, last: last || pdf.numPages };
+                },
+
+                async analyzePdfFile(file) {
+                    if (!file) return;
+                    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+                        alert('請選擇 PDF 檔案。');
+                        return;
+                    }
+                    if (file.size > 30 * 1024 * 1024) {
+                        alert('PDF 檔案超過 30MB，為避免手機記憶體壓力，請先分割 PDF 後再匯入。');
+                        return;
+                    }
+                    this.pdfImportFile = file;
+                    this.pdfImportFileName = file.name;
+                    this.pdfImportRecords = [];
+                    this.pdfImportError = false;
+                    this.pdfImportBusy = true;
+                    this.pdfImportProgress = 0;
+                    this.pdfImportProgressLabel = '正在載入 PDF…';
+                    this.pdfImportStatus = '';
+                    try {
+                        const pdfjs = await this.waitForPdfJs();
+                        pdfjs.GlobalWorkerOptions.workerSrc = window.__housecheckPdfJsInfo?.workerSrc || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                        if (window.__housecheckPdfJsInfo?.source === 'local' || window.__housecheckPdfJsInfo?.source === 'local-vendor') {
+                            this.pdfImportStatus = '已使用網站內建 PDF.js，PDF 辨識本身不需額外連網。正在讀取 PDF…';
+                        } else {
+                            this.pdfImportStatus = '正在使用線上 PDF.js 解析器，請保持網路連線…';
+                        }
+                        const buffer = await file.arrayBuffer();
+                        const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+                        this.pdfImportTotalPages = pdf.numPages;
+                        const autoRange = await this.findPdfImportPageRange(pdf);
+                        if (!this.pdfImportRangeManual) {
+                            this.pdfImportStartPage = autoRange.first;
+                            this.pdfImportEndPage = autoRange.last;
+                        } else {
+                            const requestedStart = Number(this.pdfImportStartPage) || autoRange.first;
+                            const requestedEnd = Number(this.pdfImportEndPage) || autoRange.last;
+                            this.pdfImportStartPage = Math.min(Math.max(1, requestedStart), pdf.numPages);
+                            this.pdfImportEndPage = Math.min(Math.max(this.pdfImportStartPage, requestedEnd), pdf.numPages);
+                        }
+
+                        const categoryMatch = (file.name || '').match(/(?:\(|（)([^)）]+)(?:\)|）)/);
+                        const guessedCategory = String(categoryMatch?.[1] || '').trim();
+                        if (guessedCategory) {
+                            const guessedNorm = this.normalizePdfImportText(guessedCategory);
+                            const matchedCategory = this.categoryList.find(c => {
+                                const n = this.normalizePdfImportText(c);
+                                return n === guessedNorm || n.includes(guessedNorm) || guessedNorm.includes(n);
+                            });
+                            this.pdfImportCategory = String(matchedCategory || guessedCategory).slice(0, 18);
+                        } else if (!this.pdfImportCategory) {
+                            this.pdfImportCategory = String(this.categoryList[0] || '').slice(0, 18);
+                        }
+                        if (!this.pdfImportMethod) this.pdfImportMethod = this.methodList.includes('目視檢驗') ? '目視檢驗' : (this.methodList[0] || '');
+
+                        const pageCount = Math.max(1, this.pdfImportEndPage - this.pdfImportStartPage + 1);
+                        let processed = 0;
+                        for (let pageNo = this.pdfImportStartPage; pageNo <= this.pdfImportEndPage; pageNo++) {
+                            this.pdfImportProgressLabel = `正在分析第 ${pageNo} / ${this.pdfImportEndPage} 頁…`;
+                            this.pdfImportProgress = Math.round((processed / pageCount) * 100);
+                            const page = await pdf.getPage(pageNo);
+                            const baseViewport = page.getViewport({ scale: 1 });
+                            const items = await this.getPdfPageTextItems(page);
+                            const regionLabels = this.findPdfImportAnchors(items, '檢測區域');
+                            const defectLabels = this.findPdfImportAnchors(items, '缺失說明');
+                            const photoLabels = this.findPdfImportAnchors(items, '初驗照片');
+                            this.pdfImportDiagnostics.pagesScanned += 1;
+                            this.pdfImportDiagnostics.regionLabels += regionLabels.length;
+                            this.pdfImportDiagnostics.defectLabels += defectLabels.length;
+                            this.pdfImportDiagnostics.photoLabels += photoLabels.length;
+                            if (regionLabels.length && defectLabels.length) this.pdfImportDiagnostics.structurePages += 1;
+
+                            if (regionLabels.length) {
+                                const footerY = items
+                                    .filter(i => i.y > baseViewport.height - 70)
+                                    .map(i => i.y)
+                                    .filter(Number.isFinite)
+                                    .sort((a, b) => a - b)[0] || (baseViewport.height - 40);
+                                const renderScale = 1.5;
+                                const renderViewport = page.getViewport({ scale: renderScale });
+                                const renderCanvas = document.createElement('canvas');
+                                renderCanvas.width = Math.ceil(renderViewport.width);
+                                renderCanvas.height = Math.ceil(renderViewport.height);
+                                const renderCtx = renderCanvas.getContext('2d');
+                                await page.render({ canvasContext: renderCtx, viewport: renderViewport }).promise;
+
+                                const staticLabels = new Set(['類別','現場拍攝相片','複驗欄位','初驗照片','檢測區域','缺失說明','完全修復','部分修復','尚未修復','新增缺失']);
+                                for (let idx = 0; idx < regionLabels.length; idx++) {
+                                    const regionLabel = regionLabels[idx];
+                                    const nextRegionY = regionLabels[idx + 1]?.y ?? (footerY - 8);
+                                    const defectLabel = defectLabels
+                                        .filter(i => i.y > regionLabel.y && i.y < nextRegionY)
+                                        .sort((a, b) => a.y - b.y)[0];
+
+                                    // 找同一區塊中的初驗照片標籤；找不到也不阻止建立文字缺失項目。
+                                    const photoLabel = photoLabels
+                                        .filter(i => i.y >= regionLabel.y - 10 && i.y < nextRegionY)
+                                        .sort((a, b) => Math.abs(a.y - regionLabel.y) - Math.abs(b.y - regionLabel.y))[0];
+
+                                    const defectBoundaryY = defectLabel?.y ?? nextRegionY - Math.min(60, (nextRegionY - regionLabel.y) * 0.25);
+                                    const regionCandidates = items.filter(i =>
+                                        i.x < baseViewport.width * 0.42 &&
+                                        i.y > regionLabel.y + 3 &&
+                                        i.y < defectBoundaryY - 3 &&
+                                        !staticLabels.has(this.normalizePdfImportText(i.text)) &&
+                                        !['檢測區域','缺失說明','初驗照片','類別','現場拍攝相片','複驗欄位'].some(label =>
+                                            this.pdfImportTextHas(i.text, label)
+                                        )
+                                    );
+                                    const rawRegion = this.pdfImportConcatTexts(regionCandidates);
+                                    const regionNorm = this.normalizePdfImportText(rawRegion);
+                                    const mappedSpace = this.spaceList.find(s => this.normalizePdfImportText(s) === regionNorm) || '';
+
+                                    const defectCandidates = items.filter(i =>
+                                        i.x < baseViewport.width * 0.42 &&
+                                        i.y > (defectLabel?.y ?? defectBoundaryY) + 3 &&
+                                        i.y < nextRegionY - 8 &&
+                                        !staticLabels.has(this.normalizePdfImportText(i.text)) &&
+                                        !['檢測區域','缺失說明','初驗照片','類別','現場拍攝相片','複驗欄位'].some(label =>
+                                            this.pdfImportTextHas(i.text, label)
+                                        )
+                                    );
+                                    const rawDefect = this.pdfImportConcatTexts(defectCandidates);
+                                    if (!rawRegion || !rawDefect) continue;
+
+                                    const trimmedSpace = String(mappedSpace || rawRegion).slice(0, 18);
+                                    const repairStatus = this.getPdfImportRepairStatus(items, regionLabel.y, nextRegionY, baseViewport.width);
+                                    let photoData = null;
+                                    try {
+                                        photoData = await this.cropPdfImportPhoto(
+                                            renderCanvas,
+                                            baseViewport.width,
+                                            baseViewport.height,
+                                            regionLabel.y,
+                                            nextRegionY
+                                        );
+                                    } catch (photoErr) {
+                                        console.warn(`PDF 第 ${pageNo} 頁第 ${idx + 1} 筆照片裁切失敗`, photoErr);
+                                    }
+
+                                    this.pdfImportRecords.push({
+                                        key: `pdf-${pageNo}-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                                        selected: true,
+                                        page: pageNo,
+                                        space: trimmedSpace,
+                                        originalSpace: rawRegion,
+                                        spaceMapped: !!mappedSpace,
+                                        name: rawDefect.slice(0, 50),
+                                        category: String(this.pdfImportCategory || '').slice(0, 18),
+                                        unit: String(this.pdfImportUnit || '').slice(0, 18),
+                                        method: this.pdfImportMethod || (this.methodList[0] || '目視檢驗'),
+                                        repairStatus,
+                                        inspectionStatus: repairStatus === '已完成' ? '合格' : '待複查',
+                                        photoBlob: photoData?.blob || null,
+                                        photoDataUrl: photoData?.dataUrl || '',
+                                        photoSource: photoData ? '初驗照片' : (photoLabel ? '初驗照片未裁切' : '無初驗照片')
+                                    });
+                                    this.pdfImportDiagnostics.records += 1;
+                                }
+                            }
+                            processed++;
+                            this.pdfImportProgress = Math.round((processed / pageCount) * 100);
+                            await new Promise(resolve => requestAnimationFrame(resolve));
+                            page.cleanup();
+                        }
+
+                        this.pdfImportProgress = 100;
+                        this.pdfImportProgressLabel = 'PDF 分析完成';
+                        const withPhoto = this.pdfImportRecords.filter(r => r.photoDataUrl).length;
+                        this.pdfImportStatus = this.pdfImportRecords.length
+                            ? `分析完成：共辨識 ${this.pdfImportRecords.length} 筆缺失，${withPhoto} 筆有可匯入的初驗照片。掃描 ${this.pdfImportDiagnostics.pagesScanned} 頁／找到檢測區域 ${this.pdfImportDiagnostics.regionLabels} 次、缺失說明 ${this.pdfImportDiagnostics.defectLabels} 次、初驗照片 ${this.pdfImportDiagnostics.photoLabels} 次。請確認預覽後再匯入。`
+                            : `沒有辨識到缺失區塊。此次掃描 ${this.pdfImportDiagnostics.pagesScanned} 頁，找到檢測區域 ${this.pdfImportDiagnostics.regionLabels} 次、缺失說明 ${this.pdfImportDiagnostics.defectLabels} 次、初驗照片 ${this.pdfImportDiagnostics.photoLabels} 次。已放寬文字切割與相對位置判斷，請確認 PDF 版型或手動調整頁碼。`;
+                        this.pdfImportError = this.pdfImportRecords.length === 0;
+                    } catch (err) {
+                        console.error('PDF 智慧匯入分析失敗:', err);
+                        this.pdfImportError = true;
+                        this.pdfImportStatus = `PDF 分析失敗：${err?.message || String(err)}`;
+                    } finally {
+                        this.pdfImportBusy = false;
+                    }
+                },
+
+                async handlePdfImportFile(e) {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    await this.analyzePdfFile(file);
+                    e.target.value = '';
+                },
+
+                async analyzePdfImportAgain() {
+                    if (!this.pdfImportFile) return;
+                    await this.analyzePdfFile(this.pdfImportFile);
+                },
+
+                dataUrlToImageFile(dataUrl, filename = 'pdf-import.jpg') {
+                    const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+                    if (!match) return null;
+                    const binary = atob(match[2]);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    return new File([bytes], filename, { type: match[1] || 'image/jpeg' });
+                },
+
+                async syncImportedItemsToSupabase(importedItems) {
+                    if (!this.supabaseClient || !this.selectedProjectId || !importedItems?.length) return;
+                    const project = this.projects.find(p => p.id === this.selectedProjectId);
+                    if (project) {
+                        const { error: projectError } = await this.supabaseClient
+                            .from('projects')
+                            .upsert({ id: project.id, name: project.name, created_by: this.currentRoleName() }, { onConflict: 'id' });
+                        if (projectError) throw projectError;
+                    }
+                    const rows = importedItems.map(item => this.mapItemToDb(item, this.selectedProjectId));
+                    const { error } = await this.supabaseClient
+                        .from('inspection_items')
+                        .upsert(rows, { onConflict: 'id' });
+                    if (error) throw error;
+                    importedItems.forEach(item => {
+                        this.cloudItemSnapshot[item.id] = this.cloudItemSignature({ ...item, projectId: this.selectedProjectId });
+                    });
+                },
+
+                async importParsedPdfRecords() {
+                    if (this.pdfImportBusy) return;
+                    const selected = this.pdfImportRecords.filter(r => r.selected && String(r.name || '').trim());
+                    if (!selected.length) {
+                        alert('請至少選擇一筆有效的 PDF 缺失項目。');
+                        return;
+                    }
+                    if (!this.hasPermission('create')) {
+                        alert('目前帳號沒有新增驗屋缺失項目的權限。');
+                        return;
+                    }
+                    const hasPhotos = selected.some(r => r.photoBlob);
+                    if (hasPhotos && (!this.supabaseClient || !this.authUser)) {
+                        alert('這次匯入包含初驗照片。為避免大量照片只留在瀏覽器本地，請先登入並連線 Supabase，再執行匯入。');
+                        return;
+                    }
+
+                    this.pdfImportBusy = true;
+                    this.pdfImportProgress = 0;
+                    this.pdfImportProgressLabel = '準備建立驗屋項目…';
+                    this.pdfImportError = false;
+                    const importedItems = [];
+                    const uploadedPhotoPaths = [];
+                    let nextNumber = (() => {
+                        const nums = (this.items || [])
+                            .map(i => String(i?.code || '').trim())
+                            .filter(v => /^\d+$/.test(v))
+                            .map(Number)
+                            .filter(Number.isFinite);
+                        return nums.length ? Math.max(...nums) + 1 : 1;
+                    })();
+
+                    try {
+                        for (let idx = 0; idx < selected.length; idx++) {
+                            const record = selected[idx];
+                            const item = {
+                                id: `pdf_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`,
+                                projectId: this.selectedProjectId,
+                                code: String(nextNumber++).padStart(2, '0'),
+                                name: String(record.name || '').trim(),
+                                space: String(record.space || record.originalSpace || '').slice(0, 18),
+                                category: String(this.pdfImportCategory || record.category || '').slice(0, 18),
+                                method: String(this.pdfImportMethod || record.method || '').slice(0, 18),
+                                unit: String(this.pdfImportUnit || record.unit || '').slice(0, 18),
+                                repairStatus: record.repairStatus || '待修繕',
+                                inspectionStatus: record.inspectionStatus || '待複查',
+                                dueDate: '',
+                                completeDate: record.repairStatus === '已完成' ? new Date().toISOString().slice(0, 10) : '',
+                                inspector: this.currentRoleName(),
+                                remark: '',
+                                defectPhotos: [],
+                                repairPhotos: [],
+                                inspectionPhotos: [],
+                                updatedAt: new Date().toISOString()
+                            };
+
+                            if (record.photoBlob) {
+                                this.pdfImportProgressLabel = `正在上傳第 ${idx + 1} / ${selected.length} 張初驗照片…`;
+                                const uploaded = await this.uploadImageToCloud(record.photoBlob, 'defect', item.id);
+                                if (!uploaded) throw new Error(`第 ${idx + 1} 筆初驗照片上傳失敗。`);
+                                item.defectPhotos = [uploaded];
+                                uploadedPhotoPaths.push(uploaded);
+                            }
+
+                            importedItems.push(item);
+                            this.pdfImportProgress = Math.round(((idx + 1) / selected.length) * 85);
+                            await new Promise(resolve => requestAnimationFrame(resolve));
+                        }
+
+                        // 全部照片成功後才寫入本機專案資料，避免半途失敗造成半批匯入。
+                        this.items.push(...importedItems);
+                        this.saveProjectsToStorage();
+
+                        this.pdfImportProgressLabel = '正在一次寫入 Supabase…';
+                        if (this.supabaseClient && this.authUser) {
+                            this.enqueueCloudWrite(
+                                () => this.syncImportedItemsToSupabase(importedItems),
+                                `正在寫入 ${importedItems.length} 筆 PDF 匯入資料…`
+                            );
+                        }
+
+                        this.pdfImportProgress = 100;
+                        this.pdfImportProgressLabel = '匯入完成';
+                        this.pdfImportStatus = `已完成匯入 ${importedItems.length} 筆驗屋缺失${hasPhotos ? '，初驗照片已上傳至 Supabase Storage' : ''}。`;
+                        this.showPdfImportModalFlag = false;
+                        this.currentPage = 1;
+                        alert(`PDF 匯入完成：${importedItems.length} 筆。`);
+                    } catch (err) {
+                        console.error('PDF 匯入寫入失敗:', err);
+                        // 若中途有照片已上傳、但整批尚未建立項目，先回收已上傳照片。
+                        if (uploadedPhotoPaths.length && this.supabaseClient) {
+                            try { await this.removeStoragePhotos(uploadedPhotoPaths); } catch (cleanupErr) { console.warn('PDF 匯入失敗後照片清理失敗:', cleanupErr); }
+                        }
+                        this.pdfImportError = true;
+                        this.pdfImportStatus = `匯入失敗：${err?.message || String(err)}`;
+                        alert(`PDF 匯入失敗：${err?.message || String(err)}`);
+                    } finally {
+                        this.pdfImportBusy = false;
+                    }
                 },
 
                 openPdfExportModal() {
