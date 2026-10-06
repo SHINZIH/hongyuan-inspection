@@ -611,6 +611,8 @@
 
 
         .sync-status-pill { display: inline-flex; align-items: center; }
+        .test-mode-pill { display: inline-flex; align-items: center; }
+        .test-mode-warning { border: 1px solid #f6c86f; background: #fff8e6; color: #8a5a00; }
         @media (max-width: 767px) {
             .sync-status-pill { max-width: 74px; overflow: hidden; text-overflow: ellipsis; }
         }
@@ -739,8 +741,8 @@
             white-space: nowrap;
         }
         .pdf-import-thumb {
-            width: 54px;
-            height: 54px;
+            width: 88px;
+            height: 68px;
             object-fit: cover;
             border-radius: 8px;
             border: 1px solid #e2e8f0;
@@ -751,6 +753,7 @@
             .pdf-import-preview-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
             .pdf-import-preview-table input { min-width: 150px; }
             .pdf-import-preview-table .pdf-import-name { min-width: 220px; }
+            .pdf-import-preview-table .pdf-import-thumb { width: 82px; height: 64px; }
         }
     </style>
 </head>
@@ -766,6 +769,14 @@
                 <p class="text-[10px] tracking-[0.24em] text-blue-300/80 mt-5">HOUSECHECK · INSPECTION WORKSPACE</p>
                 <h2 class="text-2xl font-bold text-white tracking-wide mt-2">行動化驗屋與修繕追蹤系統</h2>
                 <p class="text-xs text-slate-400 mt-2">安全登入、訪客瀏覽與新帳號註冊</p>
+            </div>
+
+            <div class="mt-4 flex items-center justify-center gap-2 text-[11px]">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border"
+                      :class="supabaseClient && isRealtimeConnected ? 'bg-emerald-50/10 border-emerald-300/20 text-emerald-200' : (supabaseClient ? 'bg-blue-50/10 border-blue-300/20 text-blue-200' : 'bg-slate-50/10 border-slate-300/20 text-slate-400')">
+                    <i class="fa-solid fa-circle text-[7px]"></i>
+                    <span x-text="supabaseClient ? (isTestMode ? '安全登入：Supabase 身分驗證連線可用，測試資料隔離中' : (isRealtimeConnected ? 'Supabase 已連線' : 'Supabase 已建立連線，等待資料服務')) : 'Supabase 尚未連線'"></span>
+                </span>
             </div>
 
             <template x-if="showSupabaseSetup">
@@ -1010,6 +1021,7 @@
                             <div class="flex items-center space-x-2">
                                 <h1 class="text-lg font-bold text-slate-800 tracking-tight" x-text="currentProjectName"></h1>
                                 <span x-show="isSiteAuthenticated" x-cloak class="sync-status-pill text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" :class="cloudSyncStateClass(true)" x-text="cloudSyncStatusLabel()" title="Supabase 資料寫入狀態"></span>
+                                <span x-show="isSiteAuthenticated && isTestMode" x-cloak class="test-mode-pill text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap bg-amber-50 text-amber-700 border border-amber-200" title="目前為 Owner 本機隔離測試模式"><i class="fa-solid fa-flask mr-1"></i>測試隔離</span>
                                 <template x-if="hasPermission('edit')">
                                     <button @click="openEditProjectModal()" class="project-name-edit-action text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition font-medium" title="變更專案名稱" aria-label="變更專案名稱">
                                         <i class="fa-solid fa-pen-to-square"></i><span class="project-name-edit-label ml-1">變更名稱</span>
@@ -1218,12 +1230,38 @@
                                     <button @click="toggleSelectAll()" class="text-xs text-blue-700 hover:underline font-semibold" x-text="selectedItemIds.length === filteredItems.length ? '取消全選' : '全選所有項目'"></button>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <select x-model="batchTargetSpace" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
-                                        <option value="">批次修改空間...</option>
-                                        <template x-for="s in spaceOptions" :key="s"><option :value="s" x-text="s"></option></template>
-                                    </select>
-                                    <button @click="applyBatchSpace()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用空間</button>
-                                    
+                                    <div class="flex items-center gap-1">
+                                        <select x-model="batchTargetSpace" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
+                                            <option value="">批次空間位置...</option>
+                                            <template x-for="s in spaceList" :key="'batch-s-'+s"><option :value="s" x-text="s"></option></template>
+                                        </select>
+                                        <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('space')" class="w-7 h-7 rounded-md bg-white border border-slate-300 text-slate-600" title="編輯空間選項"><i class="fa-solid fa-pen text-[10px]"></i></button></template>
+                                    </div>
+                                    <button @click="applyBatchOption('space', batchTargetSpace, '空間位置')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用空間</button>
+                                    <div class="flex items-center gap-1">
+                                        <select x-model="batchTargetCategory" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
+                                            <option value="">批次工種／類別...</option>
+                                            <template x-for="c in categoryList" :key="'batch-c-'+c"><option :value="c" x-text="c"></option></template>
+                                        </select>
+                                        <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('category')" class="w-7 h-7 rounded-md bg-white border border-slate-300 text-slate-600" title="編輯工種／類別選項"><i class="fa-solid fa-pen text-[10px]"></i></button></template>
+                                    </div>
+                                    <button @click="applyBatchOption('category', batchTargetCategory, '工種／類別')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用類別</button>
+                                    <div class="flex items-center gap-1">
+                                        <select x-model="batchTargetUnit" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
+                                            <option value="">批次戶別...</option>
+                                            <template x-for="u in unitList" :key="'batch-u-'+u"><option :value="u" x-text="u"></option></template>
+                                        </select>
+                                        <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('unit')" class="w-7 h-7 rounded-md bg-white border border-slate-300 text-slate-600" title="編輯戶別選項"><i class="fa-solid fa-pen text-[10px]"></i></button></template>
+                                    </div>
+                                    <button @click="applyBatchOption('unit', batchTargetUnit, '戶別')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用戶別</button>
+                                    <div class="flex items-center gap-1">
+                                        <select x-model="batchTargetMethod" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
+                                            <option value="">批次驗收方法...</option>
+                                            <template x-for="m in methodList" :key="'batch-m-'+m"><option :value="m" x-text="m"></option></template>
+                                        </select>
+                                        <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('method')" class="w-7 h-7 rounded-md bg-white border border-slate-300 text-slate-600" title="編輯驗收方法選項"><i class="fa-solid fa-pen text-[10px]"></i></button></template>
+                                    </div>
+                                    <button @click="applyBatchOption('method', batchTargetMethod, '驗收方法')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">套用方法</button>
                                     <select x-model="batchTargetStatus" class="text-xs border rounded-lg px-2.5 py-1.5 bg-white">
                                         <option value="">批次修繕狀態...</option>
                                         <option value="待修繕">待修繕</option>
@@ -1478,7 +1516,7 @@
                                         <div class="flex items-center space-x-3">
                                             <div class="flex items-center space-x-1">
                                                 <span>每頁：</span>
-                                                <select x-model.number="pageSize" @change="currentPage = 1; localStorage.setItem('hongyuan_page_size', pageSize)" class="border border-slate-300 rounded px-2 py-1 bg-white font-semibold">
+                                                <select x-model.number="pageSize" @change="currentPage = 1; savePageSizeSetting()" class="border border-slate-300 rounded px-2 py-1 bg-white font-semibold">
                                                     <option value="10">10 筆</option>
                                                     <option value="20">20 筆</option>
                                                     <option value="30">30 筆</option>
@@ -1574,7 +1612,7 @@
                                     <div class="flex items-center justify-between gap-2 text-[11px]">
                                         <div class="flex items-center gap-1.5">
                                             <span class="text-slate-400">每頁</span>
-                                            <select x-model.number="pageSize" @change="currentPage=1; localStorage.setItem('hongyuan_page_size', pageSize)" class="border border-slate-200 rounded-md bg-white px-2 py-1.5 font-semibold">
+                                            <select x-model.number="pageSize" @change="currentPage=1; savePageSizeSetting()" class="border border-slate-200 rounded-md bg-white px-2 py-1.5 font-semibold">
                                                 <option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50">50</option>
                                             </select>
                                             <span class="text-slate-400">筆</span>
@@ -1831,6 +1869,36 @@
                                         </button>
                                         <button @click="saveSupabaseConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存 Supabase 設定並連線</button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- 🧪 Owner 本機隔離測試模式 -->
+                            <div class="p-5 rounded-xl border border-amber-200 bg-amber-50/70 space-y-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                            <i class="fa-solid fa-flask text-amber-600"></i>
+                                            <span>Owner 本機隔離測試模式</span>
+                                        </h4>
+                                        <p class="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                                            開啟後，新增、編輯、刪除、PDF 智慧匯入、照片處理與共用選項調整都只作用於這次頁面測試；不會寫入 Supabase，也不會修改正式瀏覽器資料。
+                                            測試結束後按「結束測試」會恢復開始測試前的網站狀態。重新整理、關閉分頁或登出造成測試中斷時，系統會回到安全登入頁，但仍保留 Supabase 身分驗證連線能力。
+                                        </p>
+                                    </div>
+                                    <span class="text-[11px] px-2 py-1 rounded-full bg-white border border-amber-200 text-amber-700 font-semibold shrink-0">Owner 專用</span>
+                                </div>
+                                <div x-show="isTestMode" x-cloak class="rounded-lg px-3 py-2 test-mode-warning text-xs font-semibold">
+                                    <i class="fa-solid fa-shield-halved mr-1"></i>
+                                    目前正在隔離測試：Supabase 資料讀寫與 Realtime 已停用，安全登入仍可使用。
+                                    <span x-show="testModeStartedAt" class="font-normal" x-text="'開始時間：' + formatSyncTime(testModeStartedAt)"></span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button x-show="!isTestMode" @click="startOwnerTestMode()" :disabled="authRole !== 'Owner' || !authUser || cloudSyncPending > 0" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs shadow-sm">
+                                        <i class="fa-solid fa-flask mr-1"></i>開始隔離測試
+                                    </button>
+                                    <button x-show="isTestMode" @click="stopOwnerTestMode()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-semibold text-xs shadow-sm">
+                                        <i class="fa-solid fa-rotate-left mr-1"></i>結束測試並恢復正式狀態
+                                    </button>
                                 </div>
                             </div>
 
@@ -2250,30 +2318,14 @@
                         </label>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <label>
-                            <span class="block text-xs font-semibold text-slate-700 mb-1">匯入類別／工種（最多18字）</span>
-                            <input type="text" maxlength="18" x-model="pdfImportCategory" @input="pdfImportCategory = String(pdfImportCategory || '').slice(0,18)" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" placeholder="例如：消防">
-                        </label>
-                        <label>
-                            <span class="block text-xs font-semibold text-slate-700 mb-1">預設戶別（可留空）</span>
-                            <input type="text" maxlength="18" x-model="pdfImportUnit" @input="pdfImportUnit = String(pdfImportUnit || '').slice(0,18)" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" placeholder="例如：公設">
-                        </label>
-                    </div>
-
-                    <label>
-                        <span class="block text-xs font-semibold text-slate-700 mb-1">預設驗收方法</span>
-                        <select x-model="pdfImportMethod" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white">
-                            <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
-                        </select>
-                    </label>
 
                     <div class="md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-[11px] text-slate-600 space-y-1">
                         <div class="font-semibold text-blue-700"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>自動對應規則</div>
-                        <div>1. 「檢測區域」→ 網站的「空間位置」；若與目前共用空間選項相符，直接套用，否則保留 PDF 原文字供你編輯。</div>
-                        <div>2. 「缺失說明」→ 網站的「項目名稱」。</div>
-                        <div>3. 「初驗照片」→ 網站的「缺失照片」，每筆只帶入 1 張。</div>
-                        <div>4. PDF 的勾選位置會嘗試對應「完全修復／部分修復／尚未修復」到網站修繕狀態。</div>
+                        <div>1. 「檢測區域」→ 「空間位置」；若 PDF 偵測到的新空間尚不在共用選項，會先自動加入本次匯入的可選清單，並允許直接確認匯入，不會自動合併其他既有空間。</div>
+                        <div>2. 「缺失說明」→ 「項目名稱」。</div>
+                        <div>3. 「初驗照片」→ 「缺失照片」；系統會擴大中央照片欄裁切範圍，支援直拍、橫拍及同一欄兩張直拍並排。</div>
+                        <div>4. 「戶別」在預覽表內逐筆可編輯，也可以留白。</div>
+                        <div>5. PDF 智慧匯入不再要求工種／類別與驗收方法；這次只帶入空間、戶別、項目名稱、初驗照片與 PDF 原始修繕狀態。</div>
                     </div>
                 </div>
 
@@ -2314,6 +2366,7 @@
                                         <th class="px-3 py-2 text-left">匯入</th>
                                         <th class="px-3 py-2 text-left">頁</th>
                                         <th class="px-3 py-2 text-left">空間位置</th>
+                                        <th class="px-3 py-2 text-left">戶別</th>
                                         <th class="px-3 py-2 text-left">項目名稱</th>
                                         <th class="px-3 py-2 text-left">初驗照片</th>
                                         <th class="px-3 py-2 text-left">修繕狀態</th>
@@ -2325,10 +2378,24 @@
                                             <td class="px-3 py-2"><input type="checkbox" x-model="record.selected" class="w-4 h-4"></td>
                                             <td class="px-3 py-2 font-mono text-slate-500" x-text="record.page"></td>
                                             <td class="px-3 py-2">
-                                                <input type="text" maxlength="18" x-model="record.space" @input="record.space = String(record.space || '').slice(0,18)" class="w-full px-2 py-1.5 border border-slate-300 rounded-lg">
-                                                <div class="mt-1 text-[10px]" :class="record.spaceMapped ? 'text-emerald-600' : 'text-amber-600'" x-text="record.spaceMapped ? '已對應共用空間' : 'PDF 原文／請確認' "></div>
+                                                <div class="flex items-center gap-1">
+                                                    <select x-model="record.space" @change="record.spaceMapped = !!record.space" class="w-full min-w-[190px] px-2 py-1.5 border border-slate-300 rounded-lg bg-white">
+                                                        <template x-for="s in pdfImportOptionList('space', record.space)" :key="'pdf-r-s-'+record.key+'-'+s"><option :value="s" x-text="s"></option></template>
+                                                    </select>
+                                                    <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('space')" class="w-7 h-7 shrink-0 rounded-md bg-slate-100 text-slate-600" title="編輯空間位置選項"><i class="fa-solid fa-pen text-[10px]"></i></button></template>
+                                                </div>
+                                                <div class="mt-1 text-[10px] text-emerald-600" x-text="record.spaceAutoAdded ? 'PDF 已自動加入本次可選空間，不會自動合併其他選項' : '可直接調整空間位置'"></div>
                                             </td>
-                                            <td class="px-3 py-2"><input class="pdf-import-name w-full px-2 py-1.5 border border-slate-300 rounded-lg" type="text" x-model="record.name"></td>
+                                            <td class="px-3 py-2">
+                                                <div class="flex items-center gap-1">
+                                                    <select x-model="record.unit" class="w-full min-w-[130px] px-2 py-1.5 border border-slate-300 rounded-lg bg-white">
+                                                        <option value="">不指定</option>
+                                                        <template x-for="u in pdfImportOptionList('unit', record.unit)" :key="'pdf-r-u-'+record.key+'-'+u"><option :value="u" x-text="u"></option></template>
+                                                    </select>
+                                                    <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('unit')" class="w-7 h-7 shrink-0 rounded-md bg-slate-100 text-slate-600" title="編輯戶別"><i class="fa-solid fa-pen text-[10px]"></i></button></template>
+                                                </div>
+                                            </td>
+                                            <td class="px-3 py-2"><input class="pdf-import-name w-full px-2 py-1.5 border border-slate-300 rounded-lg" type="text" maxlength="50" x-model="record.name" @input="record.name = String(record.name || '').slice(0,50)"></td>
                                             <td class="px-3 py-2">
                                                 <template x-if="record.photoDataUrl"><img :src="record.photoDataUrl" class="pdf-import-thumb"></template>
                                                 <template x-if="!record.photoDataUrl"><div class="pdf-import-thumb flex items-center justify-center text-[10px] text-slate-400">無</div></template>
@@ -2807,30 +2874,42 @@
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">空間位置</label>
-                        <select :value="editItemForm.space || ''" @change="editItemForm.space = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="s in editSpaceOptions" :key="s"><option :value="s" x-text="s"></option></template>
-                        </select>
+                        <div class="flex items-center gap-2">
+                            <select :value="editItemForm.space || ''" @change="editItemForm.space = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="s in editSpaceOptions" :key="'edit-s-'+s"><option :value="s" x-text="s"></option></template>
+                            </select>
+                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('space')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯空間選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">工種/類別</label>
-                        <select :value="editItemForm.category || ''" @change="editItemForm.category = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="c in editCategoryOptions" :key="c"><option :value="c" x-text="c"></option></template>
-                        </select>
+                        <div class="flex items-center gap-2">
+                            <select :value="editItemForm.category || ''" @change="editItemForm.category = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="c in editCategoryOptions" :key="'edit-c-'+c"><option :value="c" x-text="c"></option></template>
+                            </select>
+                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('category')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯工種／類別選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">驗收方法</label>
-                        <select :value="editItemForm.method || ''" @change="editItemForm.method = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="m in editMethodOptions" :key="m"><option :value="m" x-text="m"></option></template>
-                        </select>
+                        <div class="flex items-center gap-2">
+                            <select :value="editItemForm.method || ''" @change="editItemForm.method = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="m in editMethodOptions" :key="'edit-m-'+m"><option :value="m" x-text="m"></option></template>
+                            </select>
+                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('method')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯驗收方法選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="block font-semibold text-slate-700">戶別</label>
-                        <select :value="editItemForm.unit || ''" @change="editItemForm.unit = $event.target.value" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                            <template x-for="u in editUnitOptions" :key="u"><option :value="u" x-text="u"></option></template>
-                        </select>
+                        <div class="flex items-center gap-2">
+                            <select :value="editItemForm.unit || ''" @change="editItemForm.unit = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="u in editUnitOptions" :key="'edit-u-'+u"><option :value="u" x-text="u"></option></template>
+                            </select>
+                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('unit')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯戶別選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
@@ -2876,12 +2955,12 @@
     </div>
 
     <!-- 編輯選項選單 Modal -->
-    <div x-show="showOptionEditModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
+    <div x-show="showOptionEditModalFlag" class="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-6 space-y-4" @click.stop>
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
                     <h3 class="text-base font-bold text-slate-800" x-text="'編輯 ' + optionEditTitle + ' 選項'"></h3>
-                    <p class="text-[10px] mt-0.5" :class="optionSettingsSyncState === 'error' ? 'text-red-500' : 'text-slate-400'" x-text="optionSettingsStatusLabel()"></p>
+                    <p class="text-[10px] mt-0.5" :class="optionSettingsSyncState === 'error' ? 'text-red-500' : 'text-slate-400'" x-text="optionSettingsStatusLabel() + '｜Owner 可修改，其他裝置會同步更新'"></p>
                 </div>
                 <button @click="showOptionEditModalFlag = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -2964,6 +3043,12 @@
                 cloudSyncLastAt: '',
                 cloudSyncLastError: '',
                 cloudSyncBatchHadError: false,
+
+                // 🧪 Owner 本機隔離測試模式：測試時不寫入 Supabase、不改正式 LocalStorage。
+                isTestMode: false,
+                testModeStartedAt: '',
+                testModeSnapshot: null,
+                testModeInterrupted: false,
 
                 // ☁️ 共用選項設定同步：空間／工種／驗收方法／戶別
                 optionSettingsSyncState: 'idle', // idle | loading | synced | saving | error | local
@@ -3065,9 +3150,6 @@
                 pdfImportEndPage: 0,
                 pdfImportRangeManual: false,
                 pdfImportDiagnostics: { pagesScanned: 0, structurePages: 0, regionLabels: 0, defectLabels: 0, photoLabels: 0, records: 0 },
-                pdfImportCategory: '',
-                pdfImportUnit: '',
-                pdfImportMethod: '目視檢驗',
                 pdfImportRecords: [],
                 pdfImportBusy: false,
                 pdfImportProgress: 0,
@@ -3087,6 +3169,9 @@
                 batchMode: false,
                 selectedItemIds: [],
                 batchTargetSpace: '',
+                batchTargetCategory: '',
+                batchTargetUnit: '',
+                batchTargetMethod: '',
                 batchTargetStatus: '',
                 pressTimer: null,
 
@@ -3138,6 +3223,7 @@
                 showOptionEditModalFlag: false,
                 optionEditTargetKey: '',
                 optionEditTitle: '',
+                optionEditBaseUpdatedAt: '',
                 tempOptionList: [],
 
                 showEditProjectModalFlag: false,
@@ -3153,8 +3239,42 @@
                 analyticsCategory: '',
                 analyticsChartType: 'pie',
 
+                appStorageGet(key) {
+                    try {
+                        return this.isTestMode ? sessionStorage.getItem(key) : localStorage.getItem(key);
+                    } catch (e) {
+                        return null;
+                    }
+                },
+
+                appStorageSet(key, value) {
+                    try {
+                        if (this.isTestMode) sessionStorage.setItem(key, String(value));
+                        else localStorage.setItem(key, String(value));
+                    } catch (e) {
+                        console.warn('本機儲存失敗:', key, e);
+                    }
+                },
+
+                appStorageRemove(key) {
+                    try {
+                        if (this.isTestMode) sessionStorage.removeItem(key);
+                        else localStorage.removeItem(key);
+                    } catch (e) {}
+                },
+
                 init() {
-                    const savedPageSize = Number(localStorage.getItem('hongyuan_page_size'));
+                    // 測試模式若因刷新／關閉分頁而中斷，啟動時只保留正常 Supabase 登入能力，
+                    // 不自動帶回測試狀態，避免使用者誤以為仍在隔離環境。
+                    try {
+                        if (localStorage.getItem('hongyuan_test_mode_interrupted') === '1') {
+                            this.testModeInterrupted = true;
+                            this.isTestMode = false;
+                            localStorage.removeItem('hongyuan_test_mode_interrupted');
+                        }
+                    } catch (e) {}
+
+                    const savedPageSize = Number(this.appStorageGet('hongyuan_page_size'));
                     if ([10, 20, 30, 40, 50].includes(savedPageSize)) this.pageSize = savedPageSize;
                     const savedUrl = localStorage.getItem('hongyuan_supabase_url');
                     const savedKey = localStorage.getItem('hongyuan_supabase_key');
@@ -3162,20 +3282,20 @@
                     if (savedKey) this.supabaseKey = savedKey;
                     this.showSupabaseSetup = !this.supabaseKey;
 
-                    const savedUsers = localStorage.getItem('hongyuan_system_users');
+                    const savedUsers = this.appStorageGet('hongyuan_system_users');
                     if (savedUsers) {
                         try { this.systemUsers = JSON.parse(savedUsers); } catch(e){}
                     }
 
-                    const savedGuestInviteCode = localStorage.getItem('hongyuan_guest_invite_code');
+                    const savedGuestInviteCode = this.appStorageGet('hongyuan_guest_invite_code');
                     if (savedGuestInviteCode) this.guestInviteCode = savedGuestInviteCode;
 
                     this.checkLockoutStatus();
 
                     // 記住上次正在使用的專案，避免回到「專案清單管理」又跳回第一個專案。
-                    const savedSelectedProjectId = localStorage.getItem('hongyuan_selected_project_id');
+                    const savedSelectedProjectId = this.appStorageGet('hongyuan_selected_project_id');
 
-                    const savedDefaults = localStorage.getItem('hongyuan_new_item_defaults');
+                    const savedDefaults = this.appStorageGet('hongyuan_new_item_defaults');
                     if (savedDefaults) {
                         try {
                             const d = JSON.parse(savedDefaults);
@@ -3189,7 +3309,7 @@
                     }
 
                     // 讀取本地暫存做為基礎備援
-                    const savedProjects = localStorage.getItem('hongyuan_projects');
+                    const savedProjects = this.appStorageGet('hongyuan_projects');
                     if (savedProjects) {
                         try {
                             this.projects = JSON.parse(savedProjects);
@@ -3203,13 +3323,13 @@
                     } else {
                         this.projects[0].items = [...this.items];
                         this.saveProjectsToStorage();
-                        localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
+                        this.appStorageSet('hongyuan_selected_project_id', this.selectedProjectId);
                     }
 
                     this.analyticsProjectId = this.selectedProjectId;
 
                     // 先讀取本機選項快取；成功連線 Supabase 後會以共用雲端設定覆蓋。
-                    const savedOptionSettings = localStorage.getItem('hongyuan_option_settings');
+                    const savedOptionSettings = this.appStorageGet('hongyuan_option_settings');
                     if (savedOptionSettings) {
                         try {
                             const saved = JSON.parse(savedOptionSettings);
@@ -3230,6 +3350,8 @@
                         }
                     };
                     document.addEventListener('paste', this._globalPasteHandler);
+                    this._testModeUnloadHandler = () => this.markTestModeInterruptedOnUnload();
+                    window.addEventListener('beforeunload', this._testModeUnloadHandler);
 
                     // 初始化 Supabase 雲端並訂閱 Realtime 廣播
                     this.initSupabase();
@@ -3260,9 +3382,9 @@
                         );
 
                         this.supabaseClient.auth.onAuthStateChange((event, session) => {
-                            setTimeout(() => this.handleAuthSession(session), 0);
+                            setTimeout(() => this.handleAuthSession(session, event), 0);
                         });
-                        this.supabaseClient.auth.getSession().then(({ data }) => this.handleAuthSession(data?.session || null));
+                        this.supabaseClient.auth.getSession().then(({ data }) => this.handleAuthSession(data?.session || null, 'INITIAL_SESSION'));
 
                         // 同一個 Realtime channel 同時監聽兩張資料表。
                         this.realtimeChannel = this.supabaseClient
@@ -3384,7 +3506,7 @@
 
                         if (data?.session && data?.user) {
                             // 首次註冊即使沒有 profiles，也會在 handleAuthSession 中採最低權限 Viewer。
-                            await this.handleAuthSession(data.session);
+                            await this.handleAuthSession(data.session, 'SIGNED_IN');
                             this.showRegisterForm = false;
                             this.registerErrorMsg = '';
                         } else {
@@ -3469,7 +3591,22 @@
                     }
                 },
 
-                async handleAuthSession(session) {
+                async handleAuthSession(session, authEvent = '') {
+                    // 測試期間發生刷新／關閉後重新開頁：保持安全登入頁，但 Supabase client 仍可連線，
+                    // 讓 Owner 可以重新登入。
+                    if (this.testModeInterrupted && session?.user && authEvent === 'INITIAL_SESSION') {
+                        try { await this.supabaseClient?.auth?.signOut({ scope: 'local' }); } catch (e) {}
+                        this.authUser = null;
+                        this.isGuestMode = false;
+                        this.isSiteAuthenticated = false;
+                        this.currentRole = 'Viewer';
+                        this.authRole = 'Viewer';
+                        this.cloudSyncState = this.supabaseClient ? 'connected' : 'idle';
+                        this.cloudSyncMessage = '安全登入頁：Supabase 已連線，尚未進入系統資料區';
+                        this.testModeInterrupted = false;
+                        return;
+                    }
+
                     this.authUser = session?.user || null;
                     this.isGuestMode = false;
                     if (!session?.user) {
@@ -3493,6 +3630,12 @@
                         this.currentRole = role;
                         this.isSiteAuthenticated = true;
                         this.loginErrorMsg = '';
+                        if (this.isTestMode) {
+                            this.cloudSyncState = 'local';
+                            this.cloudSyncMessage = '測試隔離中：資料與照片只存在本次測試，不會寫入 Supabase';
+                            this.isRealtimeConnected = false;
+                            return;
+                        }
                         await this.fetchOptionSettingsFromSupabase(true);
                         this.fetchDataFromSupabase();
                     } catch (err) {
@@ -3502,12 +3645,21 @@
                         this.currentRole = 'Viewer';
                         this.isSiteAuthenticated = true;
                         this.loginErrorMsg = '';
+                        if (this.isTestMode) {
+                            this.cloudSyncState = 'local';
+                            this.cloudSyncMessage = '測試隔離中：資料與照片只存在本次測試，不會寫入 Supabase';
+                            this.isRealtimeConnected = false;
+                            return;
+                        }
                         await this.fetchOptionSettingsFromSupabase(false);
                         this.fetchDataFromSupabase();
                     }
                 },
 
                 async logout() {
+                    if (this.isTestMode) {
+                        try { localStorage.setItem('hongyuan_test_mode_interrupted', '1'); } catch (e) {}
+                    }
                     if (this.supabaseClient && !this.isGuestMode) await this.supabaseClient.auth.signOut();
                     this.isGuestMode = false;
                     this.isSiteAuthenticated = false;
@@ -3521,6 +3673,124 @@
                     this.guestInviteErrorMsg = '';
                     this.loginErrorMsg = '';
                     this.registerErrorMsg = '';
+                },
+
+                getTestModeMutableSnapshot() {
+                    return {
+                        projects: JSON.parse(JSON.stringify(this.projects || [])),
+                        items: JSON.parse(JSON.stringify(this.items || [])),
+                        selectedProjectId: this.selectedProjectId,
+                        currentProjectName: this.currentProjectName,
+                        spaceList: [...this.spaceList],
+                        categoryList: [...this.categoryList],
+                        methodList: [...this.methodList],
+                        unitList: [...this.unitList],
+                        pageSize: this.pageSize,
+                        lastNewItemDefaults: JSON.parse(JSON.stringify(this.lastNewItemDefaults || {})),
+                        guestInviteCode: this.guestInviteCode,
+                        currentPage: this.currentPage,
+                        activeTab: this.activeTab,
+                        viewMode: this.viewMode,
+                        selectedSpaceFilter: this.selectedSpaceFilter,
+                        selectedCategoryFilter: this.selectedCategoryFilter,
+                        selectedUnitFilter: this.selectedUnitFilter,
+                        filterStatus: this.filterStatus,
+                        filterInspectionStatus: this.filterInspectionStatus
+                    };
+                },
+
+                restoreTestModeSnapshot() {
+                    const snap = this.testModeSnapshot;
+                    if (!snap) return;
+                    this.projects = JSON.parse(JSON.stringify(snap.projects || []));
+                    this.items = JSON.parse(JSON.stringify(snap.items || []));
+                    this.selectedProjectId = snap.selectedProjectId || (this.projects[0]?.id || 'p1');
+                    this.currentProjectName = snap.currentProjectName || (this.projects.find(p => p.id === this.selectedProjectId)?.name || '');
+                    this.spaceList = [...(snap.spaceList || [])];
+                    this.categoryList = [...(snap.categoryList || [])];
+                    this.methodList = [...(snap.methodList || [])];
+                    this.unitList = [...(snap.unitList || [])];
+                    this.pageSize = snap.pageSize || 10;
+                    this.lastNewItemDefaults = JSON.parse(JSON.stringify(snap.lastNewItemDefaults || this.lastNewItemDefaults));
+                    this.guestInviteCode = snap.guestInviteCode || this.guestInviteCode;
+                    this.currentPage = snap.currentPage || 1;
+                    this.activeTab = snap.activeTab || 'inspection';
+                    this.viewMode = snap.viewMode || 'table';
+                    this.selectedSpaceFilter = snap.selectedSpaceFilter || '';
+                    this.selectedCategoryFilter = snap.selectedCategoryFilter || '';
+                    this.selectedUnitFilter = snap.selectedUnitFilter || '';
+                    this.filterStatus = snap.filterStatus || '';
+                    this.filterInspectionStatus = snap.filterInspectionStatus || '';
+                    this.analyticsProjectId = this.selectedProjectId;
+                    this.selectedItemIds = [];
+                    this.saveOptionSettingsToLocalStorage();
+                },
+
+                async startOwnerTestMode() {
+                    if (this.authRole !== 'Owner' || !this.authUser) {
+                        alert('只有 Owner 可以啟動本機隔離測試模式。');
+                        return;
+                    }
+                    if (this.isTestMode) {
+                        alert('目前已經在本機隔離測試模式。');
+                        return;
+                    }
+                    if (this.cloudSyncPending > 0) {
+                        alert('目前仍有雲端同步工作正在處理。請等候同步完成後再啟動測試模式。');
+                        return;
+                    }
+
+                    this.testModeSnapshot = this.getTestModeMutableSnapshot();
+                    this.isTestMode = true;
+                    this.testModeStartedAt = new Date().toISOString();
+                    this.testModeInterrupted = false;
+                    try { localStorage.setItem('hongyuan_test_mode_interrupted', '1'); } catch (e) {}
+
+                    // 切斷 Realtime 資料廣播；Supabase client 保留給安全登入頁的身份驗證使用。
+                    try {
+                        if (this.realtimeChannel && this.supabaseClient) {
+                            await this.supabaseClient.removeChannel(this.realtimeChannel);
+                        }
+                    } catch (e) { console.warn('測試模式關閉 Realtime 失敗:', e); }
+                    this.realtimeChannel = null;
+                    this.isRealtimeConnected = false;
+                    this.cloudWriteQueue = Promise.resolve();
+                    this.cloudSyncPending = 0;
+                    this.cloudSyncState = 'local';
+                    this.cloudSyncMessage = '測試隔離中：不會寫入 Supabase';
+                    this.optionSettingsSyncState = 'local';
+
+                    alert('已進入 Owner 本機隔離測試模式。現在的新增、編輯、刪除與照片操作都只作用於本次頁面測試，不會寫入 Supabase，也不會修改正式瀏覽器資料。');
+                },
+
+                async stopOwnerTestMode() {
+                    if (!this.isTestMode) return;
+                    if (!confirm('結束測試模式後，這次測試期間的新增、編輯、刪除與照片都會丟棄，網站會恢復到測試前狀態。\n\n確定要結束測試嗎？')) return;
+
+                    this.restoreTestModeSnapshot();
+                    this.isTestMode = false;
+                    this.testModeStartedAt = '';
+                    this.testModeInterrupted = false;
+                    this.testModeSnapshot = null;
+                    try {
+                        localStorage.removeItem('hongyuan_test_mode_interrupted');
+                        ['hongyuan_projects','hongyuan_selected_project_id','hongyuan_option_settings','hongyuan_page_size','hongyuan_new_item_defaults','hongyuan_guest_invite_code','hongyuan_system_users'].forEach(k => sessionStorage.removeItem(k));
+                    } catch (e) {}
+
+                    // 恢復正式 Supabase + Realtime。
+                    this.cloudSyncState = 'connected';
+                    this.cloudSyncMessage = '正在恢復 Supabase 正式連線…';
+                    this.initSupabase();
+                    alert('測試已關閉，網站已恢復測試前資料與正式 Supabase 連線。');
+                },
+
+                markTestModeInterruptedOnUnload() {
+                    if (!this.isTestMode) return;
+                    try { localStorage.setItem('hongyuan_test_mode_interrupted', '1'); } catch (e) {}
+                },
+
+                savePageSizeSetting() {
+                    this.appStorageSet('hongyuan_page_size', this.pageSize);
                 },
 
                 saveGuestInviteCode() {
@@ -3538,11 +3808,15 @@
                         return;
                     }
                     this.guestInviteCode = code;
-                    localStorage.setItem('hongyuan_guest_invite_code', code);
+                    this.appStorageSet('hongyuan_guest_invite_code', code);
                     alert('訪客邀請碼已更新。之後訪客需使用新的邀請碼。');
                 },
 
                 saveSupabaseConfig() {
+                    if (this.isTestMode) {
+                        alert('目前正在 Owner 本機隔離測試模式。為避免破壞正式環境，測試期間不能修改 Supabase 連線參數；結束測試後再調整。');
+                        return;
+                    }
                     this.supabaseUrl = (this.supabaseUrl || '').trim();
                     this.supabaseKey = (this.supabaseKey || '').trim();
 
@@ -3622,6 +3896,7 @@
                 },
 
                 cloudSyncStatusLabel() {
+                    if (this.isTestMode) return '測試隔離';
                     if (this.cloudSyncState === 'syncing') return this.cloudSyncPending > 1 ? `同步中…（${this.cloudSyncPending}）` : '同步中…';
                     if (this.cloudSyncState === 'success') return '已同步';
                     if (this.cloudSyncState === 'error') return '同步失敗';
@@ -3657,6 +3932,11 @@
                 },
 
                 enqueueCloudWrite(task, label = '正在寫入 Supabase…') {
+                    if (this.isTestMode) {
+                        this.cloudSyncState = 'local';
+                        this.cloudSyncMessage = '測試隔離中：已阻止 Supabase 雲端寫入';
+                        return Promise.resolve(false);
+                    }
                     if (!this.supabaseClient) {
                         this.cloudSyncState = 'local';
                         this.cloudSyncMessage = '目前沒有 Supabase 連線';
@@ -3687,6 +3967,10 @@
                 },
 
                 async syncAllProjectsToSupabase() {
+                    if (this.isTestMode) {
+                        alert('測試隔離模式中，不能執行「立即同步全部資料」。結束測試後才可同步正式資料。');
+                        return false;
+                    }
                     if (!this.supabaseClient) {
                         alert('目前尚未建立 Supabase 連線。');
                         return;
@@ -3727,7 +4011,7 @@
                 },
 
                 saveOptionSettingsToLocalStorage() {
-                    localStorage.setItem('hongyuan_option_settings', JSON.stringify({
+                    this.appStorageSet('hongyuan_option_settings', JSON.stringify({
                         spaceList: this.spaceList,
                         categoryList: this.categoryList,
                         methodList: this.methodList,
@@ -3767,6 +4051,10 @@
                 },
 
                 async fetchOptionSettingsFromSupabase(seedIfOwner = false) {
+                    if (this.isTestMode) {
+                        this.optionSettingsSyncState = 'local';
+                        return false;
+                    }
                     if (!this.supabaseClient) {
                         this.optionSettingsSyncState = 'local';
                         return false;
@@ -3804,6 +4092,11 @@
                 },
 
                 async syncOptionSettingsToSupabase() {
+                    if (this.isTestMode) {
+                        this.optionSettingsSyncState = 'local';
+                        this.optionSettingsLastError = '';
+                        return false;
+                    }
                     if (!this.supabaseClient) {
                         this.saveOptionSettingsToLocalStorage();
                         this.optionSettingsSyncState = 'local';
@@ -3815,13 +4108,43 @@
 
                     this.optionSettingsSyncState = 'saving';
                     const payload = this.getOptionSettingsPayload();
-                    const { data, error } = await this.supabaseClient
-                        .from('inspection_option_settings')
-                        .upsert(payload, { onConflict: 'id' })
-                        .select('id,space_list,category_list,method_list,unit_list,updated_at,updated_by')
-                        .single();
-                    if (error) throw error;
+                    let data = null;
+                    let error = null;
 
+                    // 正在從「編輯選項」儲存時，使用 updated_at 做樂觀鎖定。
+                    // 如果另一台裝置先改過，UPDATE 不會命中，避免把對方的最新設定覆蓋掉。
+                    if (this.optionEditBaseUpdatedAt) {
+                        const result = await this.supabaseClient
+                            .from('inspection_option_settings')
+                            .update(payload)
+                            .eq('id', this.optionSettingsRowId)
+                            .eq('updated_at', this.optionEditBaseUpdatedAt)
+                            .select('id,space_list,category_list,method_list,unit_list,updated_at,updated_by')
+                            .maybeSingle();
+                        data = result.data;
+                        error = result.error;
+
+                        if (!error && !data) {
+                            const latestResult = await this.supabaseClient
+                                .from('inspection_option_settings')
+                                .select('id,space_list,category_list,method_list,unit_list,updated_at,updated_by')
+                                .eq('id', this.optionSettingsRowId)
+                                .maybeSingle();
+                            if (latestResult.error) throw latestResult.error;
+                            if (latestResult.data) this.applyOptionSettings(latestResult.data);
+                            throw new Error('共用選項已被其他裝置修改，為避免覆蓋最新資料，本次修改已取消。');
+                        }
+                    } else {
+                        const result = await this.supabaseClient
+                            .from('inspection_option_settings')
+                            .upsert(payload, { onConflict: 'id' })
+                            .select('id,space_list,category_list,method_list,unit_list,updated_at,updated_by')
+                            .single();
+                        data = result.data;
+                        error = result.error;
+                    }
+
+                    if (error) throw error;
                     this.applyOptionSettings(data || payload);
                     this.optionSettingsSyncState = 'synced';
                     return true;
@@ -3837,6 +4160,11 @@
                 },
 
                 async fetchDataFromSupabase() {
+                    if (this.isTestMode) {
+                        this.cloudSyncState = 'local';
+                        this.cloudSyncMessage = '測試隔離中：不讀取 Supabase 正式資料';
+                        return false;
+                    }
                     if (!this.supabaseClient) {
                         this.cloudSyncState = 'local';
                         this.cloudSyncMessage = '目前沒有 Supabase 連線';
@@ -3887,7 +4215,7 @@
                             this.cloudProjectSnapshot[p.id] = p.name;
                         });
 
-                        const rememberedId = localStorage.getItem('hongyuan_selected_project_id');
+                        const rememberedId = this.appStorageGet('hongyuan_selected_project_id');
                         const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
                         const remembered = rememberedId ? this.projects.find(p => p.id === rememberedId) : null;
                         const target = currentExist || remembered || this.projects[0];
@@ -3897,10 +4225,10 @@
                             this.currentProjectName = target.name;
                             this.items = JSON.parse(JSON.stringify(target.items || []));
                             this.analyticsProjectId = target.id;
-                            localStorage.setItem('hongyuan_selected_project_id', target.id);
+                            this.appStorageSet('hongyuan_selected_project_id', target.id);
                         }
 
-                        localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                        this.appStorageSet('hongyuan_projects', JSON.stringify(this.projects));
                         this.isRealtimeConnected = true;
                         if (this.cloudSyncPending === 0) {
                             this.cloudSyncState = 'success';
@@ -3965,7 +4293,7 @@
                             });
                         });
 
-                        localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                        this.appStorageSet('hongyuan_projects', JSON.stringify(this.projects));
                         console.log('本地資料已完成首次遷移至 Supabase。');
                     } catch (err) {
                         console.error('本地資料遷移至 Supabase 失敗:', err);
@@ -3973,6 +4301,7 @@
                 },
 
                 async syncCurrentProjectToSupabase() {
+                    if (this.isTestMode) return;
                     if (!this.supabaseClient || !this.selectedProjectId) return;
 
                     const project = this.projects.find(p => p.id === this.selectedProjectId);
@@ -4176,6 +4505,7 @@
                 },
 
                 async scanOrphanPhotos() {
+                    if (this.isTestMode) return alert('測試隔離模式中已停用 Storage 掃描。結束測試後才可使用。');
                     if (this.authRole !== 'Owner') return alert('只有 Owner 可以掃描與清理 Storage 孤兒照片。');
                     if (!this.supabaseClient) return alert('目前尚未建立 Supabase 連線。');
                     this.orphanScanState = 'scanning'; this.orphanScanLastError = ''; this.orphanScanResults = []; this.orphanScanDeletedCount = 0;
@@ -4192,6 +4522,7 @@
                 },
 
                 async cleanOrphanPhotos() {
+                    if (this.isTestMode) return alert('測試隔離模式中已停用 Storage 清理。結束測試後才可使用。');
                     if (this.authRole !== 'Owner') return alert('只有 Owner 可以清理 Storage 孤兒照片。');
                     if (!this.orphanScanResults.length) return;
                     if (!confirm(`確認刪除掃描出的 ${this.orphanScanResults.length} 張孤兒照片？\n\n這些照片目前找不到任何 inspection_items 引用。此操作無法復原。`)) return;
@@ -4296,7 +4627,7 @@
                         }
                     }
 
-                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                    this.appStorageSet('hongyuan_projects', JSON.stringify(this.projects));
                 },
 
                 async compressImage(file) {
@@ -4321,6 +4652,22 @@
 
                 async uploadImageToCloud(file, photoType = 'defect', itemId = 'draft') {
                     if (!file || !file.type?.startsWith('image/')) { alert('只允許上傳圖片檔案。'); return null; }
+                    if (this.isTestMode) {
+                        try {
+                            const compressed = await this.compressImage(file);
+                            const dataUrl = await new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result);
+                                reader.onerror = () => reject(reader.error || new Error('無法讀取測試照片'));
+                                reader.readAsDataURL(compressed);
+                            });
+                            return String(dataUrl || '');
+                        } catch (err) {
+                            console.error('測試模式照片轉換失敗:', err);
+                            alert(`測試照片處理失敗：${err?.message || String(err)}`);
+                            return null;
+                        }
+                    }
                     if (!this.supabaseClient || !this.authUser) { alert('請先登入系統後再上傳照片。'); return null; }
                     const hadPending = this.cloudSyncPending > 0;
                     if (!hadPending) this.markCloudSyncStart('正在上傳照片至 Supabase Storage…');
@@ -4431,17 +4778,24 @@
 
                 saveSystemUsers() {},
 
-                saveProjectsToStorage() {
+                persistLocalProjectState() {
                     const pIndex = this.projects.findIndex(p => p.id === this.selectedProjectId);
                     if (pIndex !== -1) {
                         this.projects[pIndex].items = JSON.parse(JSON.stringify(this.items));
                         this.projects[pIndex].name = this.currentProjectName;
                     }
-
-                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
-                    if (this.selectedProjectId) localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
+                    this.appStorageSet('hongyuan_projects', JSON.stringify(this.projects));
+                    if (this.selectedProjectId) this.appStorageSet('hongyuan_selected_project_id', this.selectedProjectId);
                     if (!this.analyticsProjectId) this.analyticsProjectId = this.selectedProjectId;
+                },
 
+                saveProjectsToStorage() {
+                    this.persistLocalProjectState();
+                    if (this.isTestMode) {
+                        this.cloudSyncState = 'local';
+                        this.cloudSyncMessage = '測試隔離中：本機測試資料未寫入 Supabase';
+                        return;
+                    }
                     if (this.supabaseClient) {
                         this.enqueueCloudWrite(() => this.syncCurrentProjectToSupabase(), '正在寫入目前專案…');
                     } else {
@@ -4572,12 +4926,6 @@
                     this.pdfImportEndPage = 0;
                     this.pdfImportRangeManual = false;
                     this.pdfImportDiagnostics = { pagesScanned: 0, structurePages: 0, regionLabels: 0, defectLabels: 0, photoLabels: 0, records: 0 };
-                    const categoryMatch = (this.currentProjectName || '').match(/(?:\(|（)([^)）]+)(?:\)|）)/);
-                    const detectedCategoryText = categoryMatch ? categoryMatch[1].trim() : '';
-                    const categoryExisting = this.categoryList.find(c => this.normalizePdfImportText(c) === this.normalizePdfImportText(detectedCategoryText));
-                    this.pdfImportCategory = (categoryExisting || detectedCategoryText || (this.categoryList[0] || '')).slice(0, 18);
-                    this.pdfImportUnit = '';
-                    this.pdfImportMethod = this.methodList.includes('目視檢驗') ? '目視檢驗' : (this.methodList[0] || '');
                 },
 
                 closePdfImportModal() {
@@ -4715,63 +5063,33 @@
                     return '待修繕';
                 },
 
-                async cropPdfImportPhoto(renderCanvas, baseWidth, baseHeight, recordTopY, recordBottomY) {
-                    // 本模板：初驗照片位於中央欄，照片本身通常比「初驗照片」文字更靠上，因此
-                    // 不再從 photoLabel 往下裁，改以整個缺失區塊的上下邊界裁切，再去除空白邊。
+                async cropPdfImportPhoto(renderCanvas, baseWidth, baseHeight, recordTopY, recordBottomY, photoAnchorY = null) {
+                    // 宏遠報告版型的「現場拍攝相片」欄實際約落在頁寬 24%～82%。
+                    // 舊版 35.5%～70.5% 太窄，容易截掉直拍、橫拍或兩張直拍並排的照片。
                     const renderScale = renderCanvas.width / baseWidth;
-                    const x1 = Math.round(baseWidth * 0.355 * renderScale);
-                    const x2 = Math.round(baseWidth * 0.705 * renderScale);
-                    const y1 = Math.max(0, Math.round((recordTopY - 28) * renderScale));
+                    const x1 = Math.max(0, Math.round(baseWidth * 0.235 * renderScale));
+                    const x2 = Math.min(renderCanvas.width, Math.round(baseWidth * 0.825 * renderScale));
+                    const anchorY = Number.isFinite(photoAnchorY) ? photoAnchorY : recordTopY;
+                    const y1 = Math.max(0, Math.round((anchorY + 8) * renderScale));
                     const y2 = Math.min(renderCanvas.height, Math.round((recordBottomY - 10) * renderScale));
                     if (x2 <= x1 || y2 <= y1) return null;
 
                     const canvas = document.createElement('canvas');
-                    canvas.width = x2 - x1;
-                    canvas.height = y2 - y1;
-                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    canvas.width = Math.max(1, x2 - x1);
+                    canvas.height = Math.max(1, y2 - y1);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(renderCanvas, x1, y1, x2 - x1, y2 - y1, 0, 0, canvas.width, canvas.height);
 
-                    // 嘗試排除上下/左右表格框線，保留中央最大的照片內容。
-                    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const data = image.data;
-                    let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
-                    const isContent = (p) => {
-                        const r = data[p], g = data[p + 1], b = data[p + 2];
-                        return (r < 242 || g < 242 || b < 242);
-                    };
-                    for (let y = 0; y < canvas.height; y++) {
-                        for (let x = 0; x < canvas.width; x++) {
-                            const p = (y * canvas.width + x) * 4;
-                            if (isContent(p)) {
-                                if (x < minX) minX = x;
-                                if (x > maxX) maxX = x;
-                                if (y < minY) minY = y;
-                                if (y > maxY) maxY = y;
-                            }
-                        }
-                    }
-                    if (maxX < minX || maxY < minY) return null;
-
-                    // 移除最外圈表格線後，如果內容仍足夠大，就取內容框；否則退回原裁切。
-                    const pad = 3;
-                    const bx1 = Math.max(0, minX + pad);
-                    const by1 = Math.max(0, minY + pad);
-                    const bx2 = Math.min(canvas.width, maxX + 1 - pad);
-                    const by2 = Math.min(canvas.height, maxY + 1 - pad);
-                    const cropW = bx2 - bx1;
-                    const cropH = by2 - by1;
-                    const useTrimmed = cropW > canvas.width * 0.35 && cropH > canvas.height * 0.35;
+                    // 不再用「非白色像素外框」強行縮到內容邊界，避免白底照片、兩張並排照片或浮水印造成誤裁。
+                    // 只移除最外側極窄表格線，保留完整照片欄範圍。
+                    const trim = Math.min(4, Math.floor(Math.min(canvas.width, canvas.height) * 0.01));
                     const out = document.createElement('canvas');
-                    out.width = useTrimmed ? cropW : canvas.width;
-                    out.height = useTrimmed ? cropH : canvas.height;
-                    out.getContext('2d').drawImage(
-                        canvas,
-                        useTrimmed ? bx1 : 0,
-                        useTrimmed ? by1 : 0,
-                        useTrimmed ? cropW : canvas.width,
-                        useTrimmed ? cropH : canvas.height,
-                        0, 0, out.width, out.height
-                    );
+                    out.width = Math.max(1, canvas.width - trim * 2);
+                    out.height = Math.max(1, canvas.height - trim * 2);
+                    out.getContext('2d').drawImage(canvas, trim, trim, out.width, out.height, 0, 0, out.width, out.height);
+
                     const blob = await new Promise(resolve => out.toBlob(resolve, 'image/jpeg', 0.90));
                     if (!blob) return null;
                     const dataUrl = await new Promise(resolve => {
@@ -4781,6 +5099,30 @@
                         reader.readAsDataURL(blob);
                     });
                     return dataUrl ? { blob, dataUrl } : null;
+                },
+
+                pdfImportOptionList(key, currentValue = '') {
+                    const source = key === 'space' ? this.spaceList : key === 'category' ? this.categoryList : key === 'unit' ? this.unitList : this.methodList;
+                    const list = Array.isArray(source) ? [...source] : [];
+                    const value = String(currentValue || '').trim();
+                    if (value && !list.includes(value)) list.unshift(value);
+                    return list;
+                },
+
+                refreshPdfImportOptionMappings() {
+                    (this.pdfImportRecords || []).forEach(record => {
+                        record.spaceMapped = !!record.space;
+                    });
+                },
+
+                validatePdfImportSelection(selected) {
+                    const problems = [];
+                    (selected || []).forEach((record, idx) => {
+                        if (!String(record.space || '').trim()) problems.push(`第 ${idx + 1} 筆：空間位置不可空白`);
+                        if (record.unit && !this.unitList.includes(record.unit)) problems.push(`第 ${idx + 1} 筆：戶別「${record.unit}」不是目前共用選項；可留白或改選有效戶別`);
+                        if (!String(record.name || '').trim()) problems.push(`第 ${idx + 1} 筆：項目名稱不可空白`);
+                    });
+                    return problems;
                 },
 
                 async findPdfImportPageRange(pdf) {
@@ -4843,20 +5185,6 @@
                             this.pdfImportStartPage = Math.min(Math.max(1, requestedStart), pdf.numPages);
                             this.pdfImportEndPage = Math.min(Math.max(this.pdfImportStartPage, requestedEnd), pdf.numPages);
                         }
-
-                        const categoryMatch = (file.name || '').match(/(?:\(|（)([^)）]+)(?:\)|）)/);
-                        const guessedCategory = String(categoryMatch?.[1] || '').trim();
-                        if (guessedCategory) {
-                            const guessedNorm = this.normalizePdfImportText(guessedCategory);
-                            const matchedCategory = this.categoryList.find(c => {
-                                const n = this.normalizePdfImportText(c);
-                                return n === guessedNorm || n.includes(guessedNorm) || guessedNorm.includes(n);
-                            });
-                            this.pdfImportCategory = String(matchedCategory || guessedCategory).slice(0, 18);
-                        } else if (!this.pdfImportCategory) {
-                            this.pdfImportCategory = String(this.categoryList[0] || '').slice(0, 18);
-                        }
-                        if (!this.pdfImportMethod) this.pdfImportMethod = this.methodList.includes('目視檢驗') ? '目視檢驗' : (this.methodList[0] || '');
 
                         const pageCount = Math.max(1, this.pdfImportEndPage - this.pdfImportStartPage + 1);
                         let processed = 0;
@@ -4928,7 +5256,8 @@
                                     const rawDefect = this.pdfImportConcatTexts(defectCandidates);
                                     if (!rawRegion || !rawDefect) continue;
 
-                                    const trimmedSpace = String(mappedSpace || rawRegion).slice(0, 18);
+                                    const selectedSpace = mappedSpace || this.addPdfDetectedSpaceToCurrentOptions(rawRegion);
+                                    const trimmedSpace = String(selectedSpace || rawRegion).slice(0, 18);
                                     const repairStatus = this.getPdfImportRepairStatus(items, regionLabel.y, nextRegionY, baseViewport.width);
                                     let photoData = null;
                                     try {
@@ -4937,7 +5266,8 @@
                                             baseViewport.width,
                                             baseViewport.height,
                                             regionLabel.y,
-                                            nextRegionY
+                                            nextRegionY,
+                                            photoLabel?.y || defectLabel?.y || regionLabel.y
                                         );
                                     } catch (photoErr) {
                                         console.warn(`PDF 第 ${pageNo} 頁第 ${idx + 1} 筆照片裁切失敗`, photoErr);
@@ -4947,13 +5277,14 @@
                                         key: `pdf-${pageNo}-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                                         selected: true,
                                         page: pageNo,
-                                        space: trimmedSpace,
+                                        space: String(selectedSpace || rawRegion).trim().slice(0, 18),
                                         originalSpace: rawRegion,
-                                        spaceMapped: !!mappedSpace,
+                                        spaceMapped: true,
+                                        spaceAutoAdded: !mappedSpace,
                                         name: rawDefect.slice(0, 50),
-                                        category: String(this.pdfImportCategory || '').slice(0, 18),
-                                        unit: String(this.pdfImportUnit || '').slice(0, 18),
-                                        method: this.pdfImportMethod || (this.methodList[0] || '目視檢驗'),
+                                        unit: '',
+                                        category: '',
+                                        method: '',
                                         repairStatus,
                                         inspectionStatus: repairStatus === '已完成' ? '合格' : '待複查',
                                         photoBlob: photoData?.blob || null,
@@ -5036,6 +5367,13 @@
                         alert('目前帳號沒有新增驗屋缺失項目的權限。');
                         return;
                     }
+                    const validationProblems = this.validatePdfImportSelection(selected);
+                    if (validationProblems.length) {
+                        const preview = validationProblems.slice(0, 8).join('\n');
+                        const more = validationProblems.length > 8 ? `\n另外還有 ${validationProblems.length - 8} 項需要處理。` : '';
+                        alert('為了避免匯入後出現無法編輯的文字值，這次先不匯入。\n\n' + preview + more + '\n\n請先從下拉選單選擇正確值，或按鉛筆把該選項加入共用選單。');
+                        return;
+                    }
                     const hasPhotos = selected.some(r => r.photoBlob);
                     if (hasPhotos && (!this.supabaseClient || !this.authUser)) {
                         alert('這次匯入包含初驗照片。為避免大量照片只留在瀏覽器本地，請先登入並連線 Supabase，再執行匯入。');
@@ -5064,11 +5402,11 @@
                                 id: `pdf_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`,
                                 projectId: this.selectedProjectId,
                                 code: String(nextNumber++).padStart(2, '0'),
-                                name: String(record.name || '').trim(),
-                                space: String(record.space || record.originalSpace || '').slice(0, 18),
-                                category: String(this.pdfImportCategory || record.category || '').slice(0, 18),
-                                method: String(this.pdfImportMethod || record.method || '').slice(0, 18),
-                                unit: String(this.pdfImportUnit || record.unit || '').slice(0, 18),
+                                name: String(record.name || '').trim().slice(0, 50),
+                                space: String(record.space || record.originalSpace || '').trim().slice(0, 18),
+                                category: '',
+                                method: '',
+                                unit: String(record.unit || '').trim().slice(0, 18),
                                 repairStatus: record.repairStatus || '待修繕',
                                 inspectionStatus: record.inspectionStatus || '待複查',
                                 dueDate: '',
@@ -5183,7 +5521,7 @@
 
                 // 進入專案管理時，永遠恢復目前作用中的專案，而不是回到第一筆。
                 openProjectsTab() {
-                    const rememberedId = localStorage.getItem('hongyuan_selected_project_id');
+                    const rememberedId = this.appStorageGet('hongyuan_selected_project_id');
                     const targetId = rememberedId && this.projects.some(p => p.id === rememberedId)
                         ? rememberedId
                         : this.selectedProjectId;
@@ -5194,7 +5532,7 @@
                         this.currentProjectName = target.name;
                         this.items = JSON.parse(JSON.stringify(target.items || []));
                         this.analyticsProjectId = target.id;
-                        localStorage.setItem('hongyuan_selected_project_id', target.id);
+                        this.appStorageSet('hongyuan_selected_project_id', target.id);
                     }
 
                     this.activeTab = 'projects';
@@ -5236,8 +5574,8 @@
                     this.filterStatus = '';
                     this.filterInspectionStatus = '';
 
-                    localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
-                    localStorage.setItem('hongyuan_projects', JSON.stringify(this.projects));
+                    this.appStorageSet('hongyuan_selected_project_id', this.selectedProjectId);
+                    this.appStorageSet('hongyuan_projects', JSON.stringify(this.projects));
                 },
 
                 openEditProjectModal() {
@@ -5283,7 +5621,7 @@
                     this.analyticsProjectId = newProj.id;
                     this.items = [];
                     this.currentPage = 1;
-                    localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
+                    this.appStorageSet('hongyuan_selected_project_id', this.selectedProjectId);
                     this.saveProjectsToStorage();
 
                     this.showCreateProjectModalFlag = false;
@@ -5307,7 +5645,7 @@
                             this.currentProjectName = firstProj.name;
                             this.analyticsProjectId = firstProj.id;
                             this.items = JSON.parse(JSON.stringify(firstProj.items || []));
-                            localStorage.setItem('hongyuan_selected_project_id', this.selectedProjectId);
+                            this.appStorageSet('hongyuan_selected_project_id', this.selectedProjectId);
                         }
                         this.currentPage = 1;
                         this.saveProjectsToStorage();
@@ -5483,25 +5821,40 @@
                     }
                 },
 
-                applyBatchSpace() {
-                    if (!this.batchTargetSpace) return;
-                    this.items.forEach(i => {
-                        if (this.selectedItemIds.includes(i.id)) i.space = this.batchTargetSpace;
-                    });
-                    this.saveProjectsToStorage();
+                async applyBatchOption(field, value, label) {
+                    if (!value || !['space','category','unit','method'].includes(field) || !this.selectedItemIds.length) return;
+                    const selected = this.items.filter(i => this.selectedItemIds.includes(i.id));
+                    selected.forEach(item => { item[field] = value; item.updatedAt = new Date().toISOString(); });
+                    this.persistLocalProjectState();
+                    if (this.supabaseClient && this.authUser) {
+                        this.enqueueCloudWrite(
+                            () => this.syncItemFieldsToSupabase(selected, [field]),
+                            `正在安全批次同步「${label}」（不覆蓋照片）…`
+                        );
+                    }
                 },
 
-                applyBatchStatus() {
-                    if (!this.batchTargetStatus) return;
-                    this.items.forEach(i => {
-                        if (this.selectedItemIds.includes(i.id)) {
-                            i.repairStatus = this.batchTargetStatus;
-                            if (i.repairStatus === '已完成' && !i.completeDate) {
-                                i.completeDate = new Date().toISOString().split('T')[0];
-                            }
-                        }
+                async applyBatchSpace() {
+                    return this.applyBatchOption('space', this.batchTargetSpace, '空間位置');
+                },
+
+                async applyBatchStatus() {
+                    if (!this.batchTargetStatus || !this.selectedItemIds.length) return;
+                    const selected = this.items.filter(i => this.selectedItemIds.includes(i.id));
+                    selected.forEach(item => {
+                        item.repairStatus = this.batchTargetStatus;
+                        if (item.repairStatus === '已完成' && !item.completeDate) item.completeDate = new Date().toISOString().split('T')[0];
+                        item.updatedAt = new Date().toISOString();
                     });
-                    this.saveProjectsToStorage();
+                    this.persistLocalProjectState();
+                    if (this.supabaseClient && this.authUser) {
+                        const fields = ['repairStatus'];
+                        if (this.batchTargetStatus === '已完成') fields.push('completeDate');
+                        this.enqueueCloudWrite(
+                            () => this.syncItemFieldsToSupabase(selected, fields),
+                            '正在安全批次同步修繕狀態（不覆蓋照片）…'
+                        );
+                    }
                 },
 
                 deleteBatchItems() {
@@ -5685,7 +6038,7 @@
                         method: newItem.method,
                         unit: newItem.unit
                     };
-                    localStorage.setItem('hongyuan_new_item_defaults', JSON.stringify(this.lastNewItemDefaults));
+                    this.appStorageSet('hongyuan_new_item_defaults', JSON.stringify(this.lastNewItemDefaults));
 
                     this.saveProjectsToStorage();
                     this.showNewItemModalFlag = false;
@@ -5718,6 +6071,42 @@
                     this.showEditItemModalFlag = true;
                 },
 
+                async syncItemFieldsToSupabase(items, fields) {
+                    if (!this.supabaseClient || !this.authUser || !Array.isArray(items) || !items.length) return;
+                    const map = {
+                        name: 'name', method: 'method', space: 'space', category: 'category', unit: 'unit',
+                        repairStatus: 'repair_status', inspectionStatus: 'inspection_status', dueDate: 'due_date',
+                        completeDate: 'complete_date', inspector: 'inspector', remark: 'remark'
+                    };
+                    const fieldList = Array.from(new Set((fields || []).filter(f => map[f])));
+                    for (const item of items) {
+                        const patch = {};
+                        fieldList.forEach(field => {
+                            patch[map[field]] = (item[field] === undefined || item[field] === '') ? null : item[field];
+                        });
+                        patch.updated_at = new Date().toISOString();
+                        const { data, error } = await this.supabaseClient
+                            .from('inspection_items')
+                            .update(patch)
+                            .eq('id', String(item.id))
+                            .eq('project_id', String(this.selectedProjectId))
+                            .select('*')
+                            .single();
+                        if (error) throw error;
+
+                        const mapped = this.mapDbItem(data);
+                        const idx = this.items.findIndex(i => i.id === item.id);
+                        if (idx !== -1) this.items[idx] = mapped;
+                        const project = this.projects.find(p => p.id === this.selectedProjectId);
+                        if (project) {
+                            const pidx = (project.items || []).findIndex(i => i.id === item.id);
+                            if (pidx !== -1) project.items[pidx] = JSON.parse(JSON.stringify(mapped));
+                        }
+                        this.cloudItemSnapshot[item.id] = this.cloudItemSignature(mapped);
+                    }
+                    this.persistLocalProjectState();
+                },
+
                 async saveEditItem() {
                     const index = this.items.findIndex(i => i.id === this.editItemForm.id);
                     if (index === -1) {
@@ -5741,7 +6130,14 @@
                     try {
                         await this.removeStoragePhotos(obsoletePhotoPaths);
                         this.items[index] = nextItem;
-                        this.saveProjectsToStorage();
+                        this.persistLocalProjectState();
+                        const metadataFields = ['name','method','space','category','unit','repairStatus','inspectionStatus','dueDate','completeDate','inspector','remark'];
+                        if (this.supabaseClient && this.authUser) {
+                            this.enqueueCloudWrite(
+                                () => this.syncItemFieldsToSupabase([nextItem], metadataFields),
+                                '正在安全同步項目欄位（不覆蓋照片）…'
+                            );
+                        }
                         this.showEditItemModalFlag = false;
                     } catch (err) {
                         console.error('編輯項目時清理舊照片失敗:', err);
@@ -5762,8 +6158,50 @@
                     }
                 },
 
+                parseSpaceRangeForWarning(value) {
+                    const raw = String(value || '').trim().replace(/\s+/g, '');
+                    // 只辨識嚴格的「前綴 + 樓層-樓層」格式，例如 A梯B3-B2F；
+                    // 只有同前綴、同兩個樓層但順序相反時，才列為「可能相同」。
+                    const m = raw.match(/^(.+?)(B\d+|\d+)F?-(B\d+|\d+)F?$/i);
+                    if (!m) return null;
+                    const normFloor = v => String(v).toUpperCase().replace(/F$/i, '');
+                    return { prefix: m[1], a: normFloor(m[2]), b: normFloor(m[3]) };
+                },
+
+                findPossibleSpaceDuplicateWarnings(list) {
+                    const values = Array.isArray(list) ? list.map(v => String(v || '').trim()).filter(Boolean) : [];
+                    const warnings = [];
+                    for (let i = 0; i < values.length; i++) {
+                        const a = this.parseSpaceRangeForWarning(values[i]);
+                        if (!a) continue;
+                        for (let j = i + 1; j < values.length; j++) {
+                            const b = this.parseSpaceRangeForWarning(values[j]);
+                            if (!b) continue;
+                            if (a.prefix === b.prefix && a.a === b.b && a.b === b.a && values[i] !== values[j]) {
+                                warnings.push([values[i], values[j]]);
+                            }
+                        }
+                    }
+                    return warnings;
+                },
+
+                addPdfDetectedSpaceToCurrentOptions(value) {
+                    const raw = String(value || '').trim().slice(0, 18);
+                    if (!raw) return '';
+                    const exact = this.spaceList.find(s => this.normalizePdfImportText(s) === this.normalizePdfImportText(raw));
+                    if (exact) return exact;
+                    // 只在本次工作階段暫時增加可選值；不自動寫入 Supabase、不自動合併其他選項。
+                    this.spaceList = [raw, ...this.spaceList];
+                    return raw;
+                },
+
                 openOptionEdit(key) {
+                    if (this.authRole !== 'Owner') {
+                        alert('只有 Owner（最高權限）可以修改共用下拉選項；其他帳號可以使用下拉選單。');
+                        return;
+                    }
                     this.optionEditTargetKey = key;
+                    this.optionEditBaseUpdatedAt = this.optionSettingsLastAt || '';
                     if (key === 'space') { this.optionEditTitle = '空間位置'; this.tempOptionList = [...this.spaceList]; }
                     if (key === 'category') { this.optionEditTitle = '工種/類別'; this.tempOptionList = [...this.categoryList]; }
                     if (key === 'method') { this.optionEditTitle = '驗收方法'; this.tempOptionList = [...this.methodList]; }
@@ -5779,26 +6217,66 @@
                     this.tempOptionList.splice(idx, 1);
                 },
 
-                saveOptionEdit() {
-                    const filtered = this.tempOptionList.map(s => String(s || '').trim()).filter(Boolean);
+                async saveOptionEdit() {
+                    const filtered = this.tempOptionList
+                        .map(s => String(s || '').trim())
+                        .filter(Boolean)
+                        .filter((v, i, arr) => arr.indexOf(v) === i);
                     const overLimit = filtered.find(s => s.length > 18);
                     if (overLimit) { alert('每個選項最多 18 個字元，請縮短後再儲存。'); return; }
+                    if (!this.optionEditTargetKey) return;
+
+                    if (this.optionEditTargetKey === 'space') {
+                        const warnings = this.findPossibleSpaceDuplicateWarnings(filtered);
+                        if (warnings.length) {
+                            const preview = warnings.slice(0, 5).map(pair => `「${pair[0]}」 ↔ 「${pair[1]}」`).join('\n');
+                            const more = warnings.length > 5 ? `\n另外還有 ${warnings.length - 5} 組。` : '';
+                            const keepBoth = confirm(`⚠️ 偵測到可能相同的空間位置寫法：\n\n${preview}${more}\n\n系統不會自動合併，也不會刪除任何選項。\n按「確定」會保留兩個選項並繼續儲存；按「取消」可回到編輯畫面自行調整。`);
+                            if (!keepBoth) return;
+                        }
+                    }
+
+                    const previous = {
+                        space: [...this.spaceList],
+                        category: [...this.categoryList],
+                        method: [...this.methodList],
+                        unit: [...this.unitList]
+                    };
+
                     if (this.optionEditTargetKey === 'space') this.spaceList = filtered;
                     if (this.optionEditTargetKey === 'category') this.categoryList = filtered;
                     if (this.optionEditTargetKey === 'method') this.methodList = filtered;
                     if (this.optionEditTargetKey === 'unit') this.unitList = filtered;
 
                     this.saveOptionSettingsToLocalStorage();
-                    this.showOptionEditModalFlag = false;
+                    this.refreshPdfImportOptionMappings();
 
                     if (this.supabaseClient && this.authRole === 'Owner' && this.authUser) {
-                        this.enqueueCloudWrite(
-                            () => this.syncOptionSettingsToSupabase(),
-                            '正在同步共用選項設定…'
-                        );
+                        try {
+                            await this.syncOptionSettingsToSupabase();
+                        } catch (err) {
+                            console.error('共用選項同步失敗:', err);
+                            // 若是衝突，syncOptionSettingsToSupabase() 已把最新雲端設定載入本機；不要再覆蓋回舊值。
+                            const isConflict = String(err?.message || '').includes('已被其他裝置修改');
+                            if (!isConflict) {
+                                this.spaceList = previous.space;
+                                this.categoryList = previous.category;
+                                this.methodList = previous.method;
+                                this.unitList = previous.unit;
+                                this.saveOptionSettingsToLocalStorage();
+                                this.refreshPdfImportOptionMappings();
+                            }
+                            this.showOptionEditModalFlag = false;
+                            this.optionEditBaseUpdatedAt = '';
+                            alert(err?.message || '共用選項同步失敗，本次修改未儲存。');
+                            return;
+                        }
                     } else {
                         this.optionSettingsSyncState = 'local';
                     }
+
+                    this.showOptionEditModalFlag = false;
+                    this.optionEditBaseUpdatedAt = '';
                 },
 
                 openGalleryModal() {
