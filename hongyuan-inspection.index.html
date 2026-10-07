@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>行動化驗屋與修繕追蹤系統｜Responsive v18 PDF Import</title>
+    <title>行動化驗屋與修繕追蹤系統｜V25 PDF / Viewer 穩定版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -748,6 +748,40 @@
             border: 1px solid #e2e8f0;
             background: #f1f5f9;
         }
+        .category-multi-select { position: relative; }
+        .category-multi-select-menu {
+            position: absolute;
+            left: 0; right: 0; top: calc(100% + 6px);
+            z-index: 180;
+            max-height: 240px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            box-shadow: 0 16px 32px rgba(15,23,42,.14);
+            padding: 6px;
+        }
+        .category-multi-select-option {
+            display:flex; align-items:center; gap:8px;
+            width:100%; padding:9px 10px; border-radius:9px;
+            font-size:12px; color:#334155; text-align:left;
+        }
+        .category-multi-select-option:hover { background:#f8fafc; }
+        .category-multi-select-summary {
+            min-height:38px; width:100%; padding:8px 38px 8px 12px;
+            border:1px solid #cbd5e1; border-radius:10px;
+            background:#fff; font-size:12px; color:#334155;
+            text-align:left; position:relative;
+        }
+        .category-multi-select-summary .chevron {
+            position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#64748b;
+        }
+        .category-multi-select-tags { display:flex; flex-wrap:wrap; gap:4px; }
+        .category-multi-select-tag {
+            display:inline-flex; align-items:center; padding:3px 7px; border-radius:999px;
+            background:#eff6ff; color:#1d4ed8; font-size:10px; font-weight:700;
+        }
+
         @media (max-width: 767px) {
             .pdf-import-modal-card { max-height: 92vh !important; }
             .pdf-import-preview-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -842,6 +876,12 @@
                     <template x-if="loginErrorMsg && lockoutRemainingSeconds <= 0">
                         <div class="bg-amber-500/10 border border-amber-400/20 text-amber-200 p-3 rounded-xl text-xs font-medium" x-text="loginErrorMsg"></div>
                     </template>
+                    <template x-if="cloudDataError && !isSiteAuthenticated">
+                        <div class="bg-red-500/10 border border-red-400/20 text-red-200 p-3 rounded-xl text-[11px] leading-5">
+                            <div class="font-semibold mb-0.5">Supabase 雲端資料讀取詳細訊息</div>
+                            <div class="break-words" x-text="cloudDataError"></div>
+                        </div>
+                    </template>
 
                     <div class="pt-1">
                         <label class="block text-xs font-semibold text-slate-300 mb-1.5">訪客邀請碼</label>
@@ -862,7 +902,7 @@
                     <template x-if="guestInviteErrorMsg">
                         <div class="bg-red-500/10 border border-red-400/20 text-red-200 p-3 rounded-xl text-xs font-medium" x-text="guestInviteErrorMsg"></div>
                     </template>
-                    <p class="text-[11px] text-slate-500 text-center leading-5">訪客模式需輸入有效邀請碼，僅可瀏覽資料，不能新增、編輯或刪除。</p>
+                    <p class="text-[11px] text-slate-500 text-center leading-5">訪客模式需輸入有效邀請碼，僅可瀏覽資料，謝謝。</p>
                 </div>
             </template>
 
@@ -910,7 +950,7 @@
                     <template x-if="guestInviteErrorMsg">
                         <div class="bg-red-500/10 border border-red-400/20 text-red-200 p-3 rounded-xl text-xs font-medium" x-text="guestInviteErrorMsg"></div>
                     </template>
-                    <p class="text-[11px] text-slate-500 text-center leading-5">新註冊帳號首次進入系統預設為純觀看者 (Viewer)，管理員可再於 Supabase profiles 調整角色。</p>
+                    <p class="text-[11px] text-slate-500 text-center leading-5">新註冊帳號首次進入系統預設為純觀看者 ，請通知管理員更改權限。</p>
                 </div>
             </template>
 
@@ -1003,7 +1043,7 @@
                     <span>當前模擬身份</span>
                     <span class="text-emerald-400 font-semibold text-right" x-text="currentRoleName()"></span>
                 </div>
-                <p class="text-[11px] text-slate-500 leading-5">訪客需輸入邀請碼後才能瀏覽；註冊帳號首次進入預設為純觀看者。</p>
+                <p class="text-[11px] text-slate-500 leading-5">© 2026 弘原營造有限公司  Hong Yuan Construction Co., Ltd. (Developed by 星仔). All rights reserved.</p>
             </div>
         </aside>
 
@@ -1403,7 +1443,27 @@
                                                                 <span class="text-slate-700" x-text="item.space"></span>
                                                             </template>
                                                             <template x-if="col.key === 'category'">
-                                                                <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-xs font-medium" x-text="item.category"></span>
+                                                                <div class="relative inline-block" @click.stop>
+                                                                    <button type="button" @click="hasPermission('edit') ? openInlineCategoryEditor(item) : null" class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-xs font-medium text-left transition" :class="hasPermission('edit') ? 'hover:bg-blue-100 hover:text-blue-700 cursor-pointer ring-offset-1' : 'cursor-default'" :title="hasPermission('edit') ? '直接點擊編輯工種／類別（可複選）' : '純觀看者模式'">
+                                                                        <span x-text="categoryDisplay(item.category) || '未設定'"></span>
+                                                                        <i x-show="hasPermission('edit')" class="fa-solid fa-pen text-[9px] ml-1 opacity-50"></i>
+                                                                    </button>
+                                                                    <div x-show="categoryQuickEditItemId === item.id && categoryQuickEditMenuOpen" x-cloak class="absolute left-0 top-full mt-2 z-[120] w-64 bg-white border border-slate-200 rounded-xl shadow-2xl p-3" @click.stop>
+                                                                        <div class="text-[11px] font-bold text-slate-700 mb-2">工種／類別（可複選）</div>
+                                                                        <div class="max-h-48 overflow-y-auto space-y-1.5">
+                                                                            <template x-for="c in categoryQuickEditOptions" :key="'quick-cat-' + item.id + '-' + c">
+                                                                                <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs">
+                                                                                    <input type="checkbox" :value="c" x-model="categoryQuickEditSelection" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                                                                    <span x-text="c"></span>
+                                                                                </label>
+                                                                            </template>
+                                                                        </div>
+                                                                        <div class="flex justify-end gap-2 pt-2 mt-2 border-t border-slate-100">
+                                                                            <button type="button" @click="cancelInlineCategoryEditor()" class="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-600 text-[11px]">取消</button>
+                                                                            <button type="button" @click="saveInlineCategoryEditor()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold">儲存</button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                             </template>
                                                             <template x-if="col.key === 'unit'">
                                                                 <span class="font-medium text-blue-600" x-text="item.unit"></span>
@@ -1552,7 +1612,7 @@
                                 <article class="mobile-inspection-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                                     <div class="flex items-center gap-1.5 px-2.5 py-2 border-b border-slate-100 bg-slate-50/80">
                                         <span class="font-mono text-[10px] font-bold text-blue-700 shrink-0" x-text="item.code || '-'" ></span>
-                                        <span class="text-[10px] text-slate-500 truncate min-w-0" x-text="(item.space || '-') + ' / ' + (item.category || '-')"></span>
+                                        <button type="button" @click.stop="hasPermission('edit') ? openEditModal(item) : null" class="text-[10px] text-slate-500 truncate min-w-0 text-left" :class="hasPermission('edit') ? 'hover:text-blue-700 cursor-pointer' : 'cursor-default'" :title="hasPermission('edit') ? '點擊直接編輯工種／類別' : '純觀看者模式'" x-text="(item.space || '-') + ' / ' + (categoryDisplay(item.category) || '-')"></button>
                                         <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded font-semibold bg-blue-50 text-blue-600 shrink-0" x-text="item.unit || '-'" ></span>
                                         <template x-if="hasPermission('edit')">
                                             <button type="button" @click.stop="openEditModal(item)" class="mobile-icon-btn text-blue-600" aria-label="編輯" title="編輯">
@@ -2142,12 +2202,13 @@
                     PDF 固定版型：第 1 頁固定 2 個缺失，後續每頁固定 3 個缺失。
                 </div>
 
-                <button type="button" @click="openPdfImportModal()" class="w-full py-2.5 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-file-import"></i>從 PDF 智慧匯入驗屋缺失與初驗照片
-                </button>
+                <template x-if="hasPermission('create')">
+                    <button type="button" @click="openPdfImportModal()" class="w-full py-2.5 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-file-import"></i>從 PDF 智慧匯入驗屋缺失與初驗照片
+                    </button>
+                </template>
                 <div class="text-[10px] text-slate-400 leading-relaxed">
-                    PDF 辨識器會優先使用網站內的 <span class="font-semibold">./pdfjs/</span>，找不到時才使用線上 PDF.js。
-                    要完全離線辨識 PDF，請在網站資料夾放入 <span class="font-mono">pdf.min.js</span> 與 <span class="font-mono">pdf.worker.min.js</span>。
+                    PDF 智慧匯入會自動分析報告中的檢測區域、缺失說明與初驗照片；不需要另外建立 pdfjs 資料夾。
                 </div>
 
                 <div>
@@ -2243,7 +2304,7 @@
                                 <div class="border border-slate-400 rounded mb-3 p-3 bg-white">
                                     <div class="flex justify-between items-center border-b border-slate-200 pb-1 mb-2 text-xs">
                                         <span class="font-bold text-blue-700" x-text="(item.unit || '') + ' ' + (item.space || '') + ' - ' + item.name"></span>
-                                        <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium" x-text="item.category"></span>
+                                        <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium" x-text="categoryDisplay(item.category)"></span>
                                     </div>
                                     <div class="grid grid-cols-2 gap-2">
                                         <template x-for="pType in pdfForm.photoTypes" :key="pType">
@@ -2360,7 +2421,7 @@
                         </div>
 
                         <div class="pdf-import-preview-wrap border border-slate-200 rounded-xl">
-                            <table class="pdf-import-preview-table min-w-[900px] w-full text-xs">
+                            <table class="pdf-import-preview-table min-w-[820px] w-full text-xs">
                                 <thead class="bg-slate-50 border-b border-slate-200">
                                     <tr>
                                         <th class="px-3 py-2 text-left">匯入</th>
@@ -2455,11 +2516,11 @@
                     </div>
 
                     <template x-for="item in pageItems" :key="item.id">
-                        <div style="height:310px; border:1.5px solid #475569; margin-bottom:10px; page-break-inside:avoid; break-inside:avoid; border-radius:6px; overflow:hidden; background:#fff; box-sizing:border-box;">
+                        <div style="height:310px; border:1.5px solid #475569; margin-bottom:8px; page-break-inside:avoid; break-inside:avoid; border-radius:6px; overflow:hidden; background:#fff; box-sizing:border-box;">
                             <table style="width:100%; border-collapse:collapse; font-size:12px;">
                                 <tr style="background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
                                     <td style="padding:6px 10px; width:15%; font-weight:bold; border-right:1px solid #cbd5e1; color:#334155;">類別</td>
-                                    <td style="padding:6px 10px; width:35%; border-right:1px solid #cbd5e1; font-weight:500;" x-text="item.category"></td>
+                                    <td style="padding:6px 10px; width:35%; border-right:1px solid #cbd5e1; font-weight:500;" x-text="categoryDisplay(item.category)"></td>
                                     <td style="padding:6px 10px; width:15%; font-weight:bold; border-right:1px solid #cbd5e1; color:#334155;">檢測區域</td>
                                     <td style="padding:6px 10px; width:35%; font-weight:bold; color:#2563eb;" x-text="(item.unit || '') + ' ' + (item.space || '')"></td>
                                 </tr>
@@ -2469,14 +2530,14 @@
                                 </tr>
                             </table>
 
-                            <div style="padding:7px 9px; border-bottom:1px solid #cbd5e1; background:#fafafa;">
-                                <div style="display:flex; gap:9px; justify-content:center; align-items:center;">
+                            <div style="padding:5px 8px; border-bottom:1px solid #cbd5e1; background:#fafafa;">
+                                <div style="display:flex; gap:7px; justify-content:center; align-items:center;">
                                     <template x-for="pType in pdfForm.photoTypes" :key="pType">
                                         <div style="flex:1; text-align:center; max-width:50%;">
                                             <div style="font-size:10px; font-weight:bold; color:#475569; margin-bottom:3px;" x-text="pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')"></div>
-                                            <div style="width:100%; height:135px; border:1px solid #e2e8f0; background:#f1f5f9; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:4px;">
+                                            <div style="width:100%; height:154px; border:1px solid #e2e8f0; background:#f1f5f9; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:4px;">
                                                 <template x-if="getPhotosByType(item, pType).length > 0">
-                                                    <img :src="getPhotoUrl(getPhotosByType(item, pType)[0])" style="max-width:100%; max-height:100%; object-fit:contain;">
+                                                    <img :src="getPhotoUrl(getPhotosByType(item, pType)[0])" :data-export-photo-path="getPhotosByType(item, pType)[0] || ''" crossorigin="anonymous" style="max-width:100%; max-height:100%; object-fit:contain;">
                                                 </template>
                                                 <template x-if="getPhotosByType(item, pType).length === 0">
                                                     <span style="font-size:10px; color:#94a3b8;">（尚無相片）</span>
@@ -2487,12 +2548,12 @@
                                 </div>
                             </div>
 
-                            <div style="padding:6px 11px; background:#fff; display:flex; justify-content:space-between; align-items:center; font-size:11px;">
-                                <span style="font-weight:bold; color:#1e293b;">複檢欄位區域：</span>
-                                <div style="display:flex; gap:16px; font-size:11px;">
-                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '待修繕'" style="width:13px;height:13px;"><span :style="item.repairStatus === '待修繕' ? 'color:#d97706;font-weight:bold;' : 'color:#64748b;'">待修繕</span></label>
-                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '修繕中'" style="width:13px;height:13px;"><span :style="item.repairStatus === '修繕中' ? 'color:#2563eb;font-weight:bold;' : 'color:#64748b;'">修繕中</span></label>
-                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '已完成'" style="width:13px;height:13px;"><span :style="item.repairStatus === '已完成' ? 'color:#059669;font-weight:bold;' : 'color:#64748b;'">修繕完成</span></label>
+                            <div style="padding:4px 9px; background:#fff; display:flex; justify-content:space-between; align-items:center; font-size:10px; line-height:1.2;">
+                                <span style="font-weight:bold; color:#1e293b; white-space:nowrap;">複檢欄位區域：</span>
+                                <div style="display:flex; gap:12px; font-size:10px;">
+                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '待修繕'" style="width:11px;height:11px;"><span :style="item.repairStatus === '待修繕' ? 'color:#d97706;font-weight:bold;' : 'color:#64748b;'">待修繕</span></label>
+                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '修繕中'" style="width:11px;height:11px;"><span :style="item.repairStatus === '修繕中' ? 'color:#2563eb;font-weight:bold;' : 'color:#64748b;'">修繕中</span></label>
+                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '已完成'" style="width:11px;height:11px;"><span :style="item.repairStatus === '已完成' ? 'color:#059669;font-weight:bold;' : 'color:#64748b;'">修繕完成</span></label>
                                 </div>
                             </div>
                         </div>
@@ -2697,7 +2758,7 @@
                         <div>
                             <span class="text-xs text-slate-400 font-medium">缺失項目資訊</span>
                             <h3 class="text-base font-bold text-slate-800 mt-0.5" x-text="currentPhotoItem.name"></h3>
-                            <p class="text-xs text-slate-500 mt-0.5" x-text="(currentPhotoItem.space || '') + ' ／ ' + (currentPhotoItem.category || '')"></p>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="(currentPhotoItem.space || '') + ' ／ ' + (categoryDisplay(currentPhotoItem.category) || '')"></p>
                         </div>
                         <hr class="border-slate-100">
                         <template x-if="hasPermission('edit')">
@@ -2764,11 +2825,27 @@
                     </div>
 
                     <div class="space-y-1.5">
-                        <label class="block text-sm font-semibold text-slate-700">工種/類別</label>
+                        <label class="block text-sm font-semibold text-slate-700">工種/類別（可複選）</label>
                         <div class="flex items-center space-x-2">
-                            <select x-model="newItemForm.category" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                                <template x-for="c in categoryList" :key="c"><option :value="c" x-text="c"></option></template>
-                            </select>
+                            <div class="category-multi-select flex-1" @click.outside="newItemCategoryMenuOpen = false">
+                                <button type="button" class="category-multi-select-summary" @click="newItemCategoryMenuOpen = !newItemCategoryMenuOpen">
+                                    <template x-if="newItemCategorySelection.length">
+                                        <div class="category-multi-select-tags">
+                                            <template x-for="c in newItemCategorySelection" :key="'new-cat-tag-'+c"><span class="category-multi-select-tag" x-text="c"></span></template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!newItemCategorySelection.length"><span class="text-slate-400">請選擇工種／類別</span></template>
+                                    <i class="fa-solid fa-chevron-down chevron"></i>
+                                </button>
+                                <div x-show="newItemCategoryMenuOpen" x-cloak class="category-multi-select-menu" @click.stop>
+                                    <template x-for="c in categoryList" :key="'new-cat-'+c">
+                                        <label class="category-multi-select-option cursor-pointer">
+                                            <input type="checkbox" :value="c" x-model="newItemCategorySelection" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span x-text="c"></span>
+                                        </label>
+                                    </template>
+                                </div>
+                            </div>
                             <button @click="openOptionEdit('category')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
                         </div>
                     </div>
@@ -2883,11 +2960,27 @@
                     </div>
 
                     <div class="space-y-1.5">
-                        <label class="block font-semibold text-slate-700">工種/類別</label>
+                        <label class="block font-semibold text-slate-700">工種/類別（可複選）</label>
                         <div class="flex items-center gap-2">
-                            <select :value="editItemForm.category || ''" @change="editItemForm.category = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                                <template x-for="c in editCategoryOptions" :key="'edit-c-'+c"><option :value="c" x-text="c"></option></template>
-                            </select>
+                            <div class="category-multi-select flex-1" @click.outside="editItemCategoryMenuOpen = false">
+                                <button type="button" class="category-multi-select-summary" @click="editItemCategoryMenuOpen = !editItemCategoryMenuOpen">
+                                    <template x-if="editItemCategorySelection.length">
+                                        <div class="category-multi-select-tags">
+                                            <template x-for="c in editItemCategorySelection" :key="'edit-cat-tag-'+c"><span class="category-multi-select-tag" x-text="c"></span></template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!editItemCategorySelection.length"><span class="text-slate-400">尚未選擇工種／類別</span></template>
+                                    <i class="fa-solid fa-chevron-down chevron"></i>
+                                </button>
+                                <div x-show="editItemCategoryMenuOpen" x-cloak class="category-multi-select-menu" @click.stop>
+                                    <template x-for="c in editCategoryOptions" :key="'edit-cat-'+c">
+                                        <label class="category-multi-select-option cursor-pointer">
+                                            <input type="checkbox" :value="c" x-model="editItemCategorySelection" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span x-text="c"></span>
+                                        </label>
+                                    </template>
+                                </div>
+                            </div>
                             <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('category')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯工種／類別選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
                         </div>
                     </div>
@@ -3030,6 +3123,11 @@
                 showSupabaseSetup: false,
                 supabaseClient: null,
                 realtimeChannel: null,
+                authStateSubscription: null,
+                supabaseClientFingerprint: '',
+                authSessionHandlingPromise: null,
+                authSessionHandlingUserId: '',
+                authSessionReady: false,
                 isRealtimeConnected: false,
                 supabasePhotoBucket: 'inspection-photos',
                 cloudWriteQueue: Promise.resolve(),
@@ -3043,6 +3141,10 @@
                 cloudSyncLastAt: '',
                 cloudSyncLastError: '',
                 cloudSyncBatchHadError: false,
+                // 🔄 雲端資料就緒狀態：已登入但雲端資料未成功載入前，不顯示舊的本機資料。
+                cloudDataReady: false,
+                cloudDataLoading: false,
+                cloudDataError: '',
 
                 // 🧪 Owner 本機隔離測試模式：測試時不寫入 Supabase、不改正式 LocalStorage。
                 isTestMode: false,
@@ -3219,6 +3321,16 @@
 
                 showEditItemModalFlag: false,
                 editItemForm: {},
+                newItemCategorySelection: [],
+                newItemCategoryMenuOpen: false,
+                editItemCategorySelection: [],
+                editItemCategoryMenuOpen: false,
+
+                // 🖱️ 清單中直接點擊類別／工種即可快速編輯（Viewer 不可使用）。
+                categoryQuickEditItemId: '',
+                categoryQuickEditSelection: [],
+                categoryQuickEditOptions: [],
+                categoryQuickEditMenuOpen: false,
 
                 showOptionEditModalFlag: false,
                 optionEditTargetKey: '',
@@ -3264,6 +3376,9 @@
                 },
 
                 init() {
+                    this.cloudDataReady = false;
+                    this.cloudDataLoading = false;
+                    this.cloudDataError = '';
                     // 測試模式若因刷新／關閉分頁而中斷，啟動時只保留正常 Supabase 登入能力，
                     // 不自動帶回測試狀態，避免使用者誤以為仍在隔離環境。
                     try {
@@ -3321,8 +3436,9 @@
                             }
                         } catch(e) {}
                     } else {
+                        // 尚未登入前只保留記憶體中的初始範例，不預先寫入本機正式快取，
+                        // 避免 Viewer 登入時看見「初始版本」資料而誤以為是 Supabase 資料。
                         this.projects[0].items = [...this.items];
-                        this.saveProjectsToStorage();
                         this.appStorageSet('hongyuan_selected_project_id', this.selectedProjectId);
                     }
 
@@ -3362,6 +3478,7 @@
                     if (!this.supabaseUrl || !this.supabaseKey) {
                         this.isRealtimeConnected = false;
                         this.supabaseClient = null;
+                        this.supabaseClientFingerprint = '';
                         return;
                     }
 
@@ -3370,23 +3487,48 @@
                         return;
                     }
 
+                    const url = this.supabaseUrl.trim();
+                    const key = this.supabaseKey.trim();
+                    const fingerprint = `${url}|${key}`;
+
+                    // 同一組 Supabase 設定不要重建 Client。重建會新增 Auth listener，
+                    // 導致 TOKEN_REFRESHED / INITIAL_SESSION 互相觸發而反覆跳回登入頁。
+                    if (this.supabaseClient && this.supabaseClientFingerprint === fingerprint) {
+                        return this.supabaseClient;
+                    }
+
                     try {
-                        if (this.realtimeChannel && this.supabaseClient) {
-                            this.supabaseClient.removeChannel(this.realtimeChannel);
+                        if (this.authStateSubscription?.subscription) {
+                            try { this.authStateSubscription.subscription.unsubscribe(); } catch (e) {}
                         }
+                        this.authStateSubscription = null;
+
+                        if (this.realtimeChannel && this.supabaseClient) {
+                            try { this.supabaseClient.removeChannel(this.realtimeChannel); } catch (e) {}
+                        }
+                        this.realtimeChannel = null;
 
                         this.supabaseClient = window.supabase.createClient(
-                            this.supabaseUrl.trim(),
-                            this.supabaseKey.trim(),
+                            url,
+                            key,
                             { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
                         );
+                        this.supabaseClientFingerprint = fingerprint;
 
-                        this.supabaseClient.auth.onAuthStateChange((event, session) => {
+                        this.authStateSubscription = this.supabaseClient.auth.onAuthStateChange((event, session) => {
+                            // Token refresh 本身不是登出。已經在系統內時，只更新 session，不重跑
+                            // profiles / projects 載入，因此不會因短暫網路狀況閃回登入頁。
+                            if (event === 'TOKEN_REFRESHED' && session?.user && this.authUser?.id === session.user.id && this.isSiteAuthenticated) {
+                                this.authUser = session.user;
+                                return;
+                            }
                             setTimeout(() => this.handleAuthSession(session, event), 0);
                         });
-                        this.supabaseClient.auth.getSession().then(({ data }) => this.handleAuthSession(data?.session || null, 'INITIAL_SESSION'));
 
-                        // 同一個 Realtime channel 同時監聽兩張資料表。
+                        this.supabaseClient.auth.getSession()
+                            .then(({ data }) => this.handleAuthSession(data?.session || null, 'INITIAL_SESSION'))
+                            .catch(err => console.warn('取得 Supabase Session 失敗:', err));
+
                         this.realtimeChannel = this.supabaseClient
                             .channel('hongyuan-inspection-db-changes')
                             .on(
@@ -3407,23 +3549,22 @@
                             .subscribe((status, err) => {
                                 if (status === 'SUBSCRIBED') {
                                     this.isRealtimeConnected = true;
-                                    console.log('Supabase Realtime 連線成功：projects + inspection_items');
-                                } else if (
-                                    status === 'CHANNEL_ERROR' ||
-                                    status === 'TIMED_OUT' ||
-                                    status === 'CLOSED'
-                                ) {
+                                    console.log('Supabase Realtime 連線成功：projects + inspection_items + options');
+                                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                                     this.isRealtimeConnected = false;
                                     console.error('Supabase Realtime 狀態：', status, err || '');
                                 }
                             });
-                    // 共用選項屬非敏感設定，先嘗試讀取；若尚未登入則只讀。
-                    this.fetchOptionSettingsFromSupabase();
 
+                        // 共用選項屬非敏感設定；在未登入時可以只讀。
+                        this.fetchOptionSettingsFromSupabase();
+                        return this.supabaseClient;
                     } catch (err) {
                         console.error('Supabase 初始化失敗:', err);
                         this.supabaseClient = null;
+                        this.supabaseClientFingerprint = '';
                         this.isRealtimeConnected = false;
+                        return null;
                     }
                 },
 
@@ -3452,6 +3593,17 @@
                     this.authUser = null;
                     this.authRole = 'Viewer';
                     this.currentRole = 'Viewer';
+                    this.cloudDataLoading = true;
+                    this.cloudDataError = '';
+                    this.isSiteAuthenticated = false;
+                    await this.fetchOptionSettingsFromSupabase(false);
+                    const guestDataOk = await this.fetchDataFromSupabase();
+                    this.cloudDataLoading = false;
+                    if (!guestDataOk) {
+                        this.guestInviteErrorMsg = '邀請碼正確，但目前無法同步 Supabase 雲端資料，請稍後再試。';
+                        return;
+                    }
+                    this.cloudDataReady = true;
                     this.isSiteAuthenticated = true;
                     this.activeTab = 'inspection';
                     this.mobileSidebarOpen = false;
@@ -3511,7 +3663,7 @@
                             this.registerErrorMsg = '';
                         } else {
                             this.showRegisterForm = false;
-                            this.registerErrorMsg = '註冊成功。若 Supabase 啟用 Email 驗證，請先完成信箱驗證，再使用新帳號登入。首次登入預設為純觀看者。';
+                            this.registerErrorMsg = '註冊成功。若 Supabase 啟用 Email 驗證，請先完成信箱驗證，再使用新帳號登入。首次登入預設為純觀看者，請通知管理員更改權限。';
                             this.loginErrorMsg = this.registerErrorMsg;
                         }
                     } catch (err) {
@@ -3563,11 +3715,10 @@
                             throw new Error('登入沒有取得有效的使用者 Session。');
                         }
 
-                        // onAuthStateChange 會接手讀取 profiles 並決定角色。
-                        await this.handleAuthSession(data.session);
-
-                        if (!this.isSiteAuthenticated) {
-                            throw new Error(this.loginErrorMsg || '登入成功，但無法取得使用者角色。');
+                        // 直接等待一次雲端 session 初始化；Auth listener 之後的重複回呼會被去重。
+                        const ready = await this.handleAuthSession(data.session, 'SIGNED_IN');
+                        if (!ready || !this.isSiteAuthenticated) {
+                            throw new Error(this.loginErrorMsg || '登入成功，但無法取得使用者角色或 Supabase 最新資料。');
                         }
 
                         this.siteLoginPassword = '';
@@ -3591,78 +3742,172 @@
                     }
                 },
 
+                async loadCloudDataWithRetry() {
+                    const attempts = this.authRole === 'Viewer' ? 3 : 2;
+                    for (let attempt = 1; attempt <= attempts; attempt++) {
+                        const ok = await this.fetchDataFromSupabase();
+                        if (ok) return true;
+                        if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 700 * attempt));
+                    }
+                    return false;
+                },
+
                 async handleAuthSession(session, authEvent = '') {
-                    // 測試期間發生刷新／關閉後重新開頁：保持安全登入頁，但 Supabase client 仍可連線，
-                    // 讓 Owner 可以重新登入。
-                    if (this.testModeInterrupted && session?.user && authEvent === 'INITIAL_SESSION') {
-                        try { await this.supabaseClient?.auth?.signOut({ scope: 'local' }); } catch (e) {}
-                        this.authUser = null;
-                        this.isGuestMode = false;
-                        this.isSiteAuthenticated = false;
-                        this.currentRole = 'Viewer';
-                        this.authRole = 'Viewer';
-                        this.cloudSyncState = this.supabaseClient ? 'connected' : 'idle';
-                        this.cloudSyncMessage = '安全登入頁：Supabase 已連線，尚未進入系統資料區';
-                        this.testModeInterrupted = false;
-                        return;
+                    // 明確的 SIGNED_OUT 才真正切回登入頁；TOKEN_REFRESHED 不應中斷目前畫面。
+                    if (!session?.user) {
+                        if (authEvent === 'SIGNED_OUT' || !this.authUser) {
+                            this.authUser = null;
+                            this.isGuestMode = false;
+                            this.isSiteAuthenticated = false;
+                            this.cloudDataReady = false;
+                            this.cloudDataLoading = false;
+                            this.currentRole = 'Viewer';
+                            this.authRole = 'Viewer';
+                            this.authSessionReady = false;
+                        }
+                        return false;
                     }
 
-                    this.authUser = session?.user || null;
-                    this.isGuestMode = false;
-                    if (!session?.user) {
-                        this.isSiteAuthenticated = false;
-                        this.currentRole = 'Viewer';
-                        this.authRole = 'Viewer';
-                        return;
+                    const userId = session.user.id;
+
+                    // Token refresh / 使用者更新：只更新 session，絕不重新做整套資料初始化。
+                    if ((authEvent === 'TOKEN_REFRESHED' || authEvent === 'USER_UPDATED') && this.authUser?.id === userId && this.isSiteAuthenticated) {
+                        this.authUser = session.user;
+                        return true;
                     }
+
+                    // 同一位使用者已完成雲端載入時，INITIAL_SESSION / SIGNED_IN 的重複回呼直接略過。
+                    if ((authEvent === 'INITIAL_SESSION' || authEvent === 'SIGNED_IN') &&
+                        this.authUser?.id === userId && this.isSiteAuthenticated && this.cloudDataReady) {
+                        this.authUser = session.user;
+                        return true;
+                    }
+
+                    // 同一時間只允許一個使用者 session 初始化流程。
+                    if (this.authSessionHandlingPromise && this.authSessionHandlingUserId === userId) {
+                        return this.authSessionHandlingPromise;
+                    }
+
+                    this.authSessionHandlingUserId = userId;
+                    this.authSessionHandlingPromise = (async () => {
+                        // 測試模式中刷新 / 關閉後重新開頁：保持安全登入頁，但不破壞 Supabase Client。
+                        if (this.testModeInterrupted && authEvent === 'INITIAL_SESSION') {
+                            try { await this.supabaseClient?.auth?.signOut({ scope: 'local' }); } catch (e) {}
+                            this.authUser = null;
+                            this.isGuestMode = false;
+                            this.isSiteAuthenticated = false;
+                            this.cloudDataReady = false;
+                            this.cloudDataLoading = false;
+                            this.currentRole = 'Viewer';
+                            this.authRole = 'Viewer';
+                            this.cloudSyncState = this.supabaseClient ? 'connected' : 'idle';
+                            this.cloudSyncMessage = '安全登入頁：Supabase 已連線，尚未進入系統資料區';
+                            this.testModeInterrupted = false;
+                            this.authSessionReady = false;
+                            return false;
+                        }
+
+                        this.authUser = session.user;
+                        this.isGuestMode = false;
+                        this.cloudDataError = '';
+                        this.cloudDataLoading = true;
+
+                        try {
+                            const { data, error } = await this.supabaseClient
+                                .from('profiles')
+                                .select('role,display_name')
+                                .eq('id', userId)
+                                .maybeSingle();
+                            if (error) throw error;
+
+                            const role = ['Owner','Admin','Inspector','Vendor','Viewer'].includes(data?.role) ? data.role : 'Viewer';
+                            this.authRole = role;
+                            this.currentRole = role;
+                            this.loginErrorMsg = '';
+
+                            if (this.isTestMode) {
+                                this.cloudDataLoading = false;
+                                this.cloudDataReady = true;
+                                this.isSiteAuthenticated = true;
+                                this.authSessionReady = true;
+                                this.cloudSyncState = 'local';
+                                this.cloudSyncMessage = '測試隔離中：資料與照片只存在本次測試，不會寫入 Supabase';
+                                this.isRealtimeConnected = false;
+                                return true;
+                            }
+
+                            // 先取得共用選項，再取得專案與缺失。任何一步失敗都不套用舊資料。
+                            await this.fetchOptionSettingsFromSupabase(this.authRole === 'Owner');
+                            const cloudOk = await this.loadCloudDataWithRetry();
+                            this.cloudDataLoading = false;
+                            if (!cloudOk) {
+                                // Session 本身有效時，不因資料查詢暫時失敗而把使用者踢回登入頁。
+                                // 保持乾淨的空雲端狀態，不套用舊本機正式資料。
+                                this.cloudDataError = this.cloudSyncLastError || 'Supabase 雲端資料讀取失敗。';
+                                this.loginErrorMsg = '目前 Supabase 雲端資料暫時無法讀取，請檢查 RLS / Data API；登入 Session 仍保持有效。';
+                                this.isSiteAuthenticated = true;
+                                this.cloudDataReady = false;
+                                this.authSessionReady = true;
+                                this.projects = [];
+                                this.items = [];
+                                this.selectedProjectId = '';
+                                this.currentProjectName = '';
+                                return true;
+                            }
+
+                            this.cloudDataReady = true;
+                            this.isSiteAuthenticated = true;
+                            this.authSessionReady = true;
+                            return true;
+                        } catch (err) {
+                            console.error('讀取使用者角色或 Supabase 資料失敗:', err);
+                            this.authRole = 'Viewer';
+                            this.currentRole = 'Viewer';
+                            this.cloudDataLoading = false;
+
+                            if (this.isTestMode) {
+                                this.cloudDataReady = true;
+                                this.isSiteAuthenticated = true;
+                                this.authSessionReady = true;
+                                this.cloudSyncState = 'local';
+                                this.cloudSyncMessage = '測試隔離中：資料與照片只存在本次測試，不會寫入 Supabase';
+                                this.isRealtimeConnected = false;
+                                return true;
+                            }
+
+                            this.cloudDataError = err?.message || '無法取得 Supabase 使用者或雲端資料。';
+                            this.loginErrorMsg = '登入 Session 有效，但 Supabase 資料暫時無法讀取；系統不會顯示舊的本機正式資料。';
+                            this.isSiteAuthenticated = true;
+                            this.cloudDataReady = false;
+                            this.authSessionReady = true;
+                            this.projects = [];
+                            this.items = [];
+                            this.selectedProjectId = '';
+                            this.currentProjectName = '';
+                            return true;
+                        }
+                    })();
 
                     try {
-                        const { data, error } = await this.supabaseClient
-                            .from('profiles')
-                            .select('role,display_name')
-                            .eq('id', session.user.id)
-                            .maybeSingle();
-                        if (error) throw error;
-
-                        // 找不到 profiles 時，採最低權限 Viewer，讓新註冊帳號仍可正常進入系統。
-                        const role = ['Owner','Admin','Inspector','Vendor','Viewer'].includes(data?.role) ? data.role : 'Viewer';
-                        this.authRole = role;
-                        this.currentRole = role;
-                        this.isSiteAuthenticated = true;
-                        this.loginErrorMsg = '';
-                        if (this.isTestMode) {
-                            this.cloudSyncState = 'local';
-                            this.cloudSyncMessage = '測試隔離中：資料與照片只存在本次測試，不會寫入 Supabase';
-                            this.isRealtimeConnected = false;
-                            return;
-                        }
-                        await this.fetchOptionSettingsFromSupabase(true);
-                        this.fetchDataFromSupabase();
-                    } catch (err) {
-                        // 角色查詢異常時也不提升權限：先以 Viewer 進入，避免新使用者被卡在登入畫面。
-                        console.error('讀取使用者角色失敗，改以 Viewer 進入:', err);
-                        this.authRole = 'Viewer';
-                        this.currentRole = 'Viewer';
-                        this.isSiteAuthenticated = true;
-                        this.loginErrorMsg = '';
-                        if (this.isTestMode) {
-                            this.cloudSyncState = 'local';
-                            this.cloudSyncMessage = '測試隔離中：資料與照片只存在本次測試，不會寫入 Supabase';
-                            this.isRealtimeConnected = false;
-                            return;
-                        }
-                        await this.fetchOptionSettingsFromSupabase(false);
-                        this.fetchDataFromSupabase();
+                        return await this.authSessionHandlingPromise;
+                    } finally {
+                        this.authSessionHandlingPromise = null;
+                        this.authSessionHandlingUserId = '';
                     }
                 },
 
                 async logout() {
+                    this.authSessionHandlingPromise = null;
+                    this.authSessionHandlingUserId = '';
+                    this.authSessionReady = false;
                     if (this.isTestMode) {
                         try { localStorage.setItem('hongyuan_test_mode_interrupted', '1'); } catch (e) {}
                     }
                     if (this.supabaseClient && !this.isGuestMode) await this.supabaseClient.auth.signOut();
                     this.isGuestMode = false;
                     this.isSiteAuthenticated = false;
+                    this.cloudDataReady = false;
+                    this.cloudDataLoading = false;
                     this.authUser = null;
                     this.currentRole = 'Viewer';
                     this.authRole = 'Viewer';
@@ -3850,7 +4095,7 @@
                         name: row.name || '',
                         method: row.method || '',
                         space: row.space || '',
-                        category: row.category || '',
+                        category: this.categoryValue(row.category || ''),
                         unit: row.unit || '',
                         defectPhotos: Array.isArray(row.defect_photos) ? row.defect_photos : [],
                         repairPhotos: Array.isArray(row.repair_photos) ? row.repair_photos : [],
@@ -3874,7 +4119,7 @@
                         name: item.name || '',
                         method: item.method || null,
                         space: item.space || null,
-                        category: item.category || null,
+                        category: this.categoryValue(item.category || '') || null,
                         unit: item.unit || null,
                         defect_photos: Array.isArray(item.defectPhotos) ? item.defectPhotos : [],
                         repair_photos: Array.isArray(item.repairPhotos) ? item.repairPhotos : [],
@@ -3897,6 +4142,7 @@
 
                 cloudSyncStatusLabel() {
                     if (this.isTestMode) return '測試隔離';
+                    if (this.authRole === 'Viewer' && this.supabaseClient) return this.cloudSyncState === 'success' ? '唯讀已同步' : '唯讀連線';
                     if (this.cloudSyncState === 'syncing') return this.cloudSyncPending > 1 ? `同步中…（${this.cloudSyncPending}）` : '同步中…';
                     if (this.cloudSyncState === 'success') return '已同步';
                     if (this.cloudSyncState === 'error') return '同步失敗';
@@ -4160,15 +4406,19 @@
                 },
 
                 async fetchDataFromSupabase() {
+                    this.cloudDataLoading = true;
                     if (this.isTestMode) {
+                        this.cloudDataLoading = false;
                         this.cloudSyncState = 'local';
                         this.cloudSyncMessage = '測試隔離中：不讀取 Supabase 正式資料';
                         return false;
                     }
                     if (!this.supabaseClient) {
+                        this.cloudDataLoading = false;
                         this.cloudSyncState = 'local';
                         this.cloudSyncMessage = '目前沒有 Supabase 連線';
-                        return;
+                        this.cloudSyncLastError = '目前沒有可用的 Supabase Client。';
+                        return false;
                     }
 
                     try {
@@ -4190,8 +4440,25 @@
                         const itemRows = itemResult.data || [];
 
                         if (projectRows.length === 0) {
-                            await this.seedLocalDataToSupabase();
-                            return;
+                            // 純觀看者只能讀取，絕不能因雲端暫時沒有專案而嘗試把本機資料寫回 Supabase。
+                            if (this.authRole !== 'Viewer' && !this.isGuestMode) {
+                                await this.seedLocalDataToSupabase();
+                                return;
+                            }
+                            this.projects = [];
+                            this.items = [];
+                            this.selectedProjectId = '';
+                            this.currentProjectName = '';
+                            this.cloudItemSnapshot = {};
+                            this.cloudProjectSnapshot = {};
+                            this.appStorageSet('hongyuan_projects', JSON.stringify([]));
+                            this.isRealtimeConnected = !!this.supabaseClient;
+                            this.cloudSyncState = 'success';
+                            this.cloudSyncMessage = '純觀看者已從 Supabase 同步完成，目前雲端沒有專案資料';
+                            this.cloudSyncLastAt = new Date().toISOString();
+                            this.cloudDataLoading = false;
+                            this.cloudDataError = '';
+                            return true;
                         }
 
                         const groupedItems = {};
@@ -4216,9 +4483,11 @@
                         });
 
                         const rememberedId = this.appStorageGet('hongyuan_selected_project_id');
-                        const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
                         const remembered = rememberedId ? this.projects.find(p => p.id === rememberedId) : null;
-                        const target = currentExist || remembered || this.projects[0];
+                        const currentExist = this.projects.find(p => p.id === this.selectedProjectId);
+                        // 初始化時 selectedProjectId 常常仍是最初範例專案；只要有使用者上次選定的
+                        // 專案，就優先採用 rememberedId，避免 Viewer 又回到最初版本。
+                        const target = remembered || currentExist || this.projects[0];
 
                         if (target) {
                             this.selectedProjectId = target.id;
@@ -4236,13 +4505,23 @@
                             this.cloudSyncLastAt = new Date().toISOString();
                         }
                         console.log(`Supabase 載入完成：${this.projects.length} 個專案、${itemRows.length} 筆缺失。`);
+                        if (this.authRole === 'Viewer') {
+                            this.cloudSyncState = 'success';
+                            this.cloudSyncMessage = '純觀看者已同步 Supabase 最新資料（唯讀）';
+                        }
+                        this.cloudDataLoading = false;
+                        this.cloudDataError = '';
+                        return true;
                     } catch (err) {
                         console.error('從 Supabase 讀取資料失敗:', err);
                         this.isRealtimeConnected = false;
                         this.cloudSyncState = 'error';
                         this.cloudSyncMessage = 'Supabase 讀取失敗';
                         this.cloudSyncLastError = err?.message || '請確認 RLS / Data API / Realtime 設定。';
-                        alert('Supabase 讀取失敗，已暫時保留瀏覽器本地資料。請確認 RLS / Data API / Realtime 設定。');
+                        this.cloudDataLoading = false;
+                        this.cloudDataError = this.cloudSyncLastError;
+                        console.warn('為避免 Viewer 顯示舊快取，Supabase 讀取失敗時不覆蓋目前雲端資料判斷。');
+                        return false;
                     }
                 },
 
@@ -4302,7 +4581,7 @@
 
                 async syncCurrentProjectToSupabase() {
                     if (this.isTestMode) return;
-                    if (!this.supabaseClient || !this.selectedProjectId) return;
+                    if (!this.supabaseClient || !this.selectedProjectId || !this.authUser || this.authRole === 'Viewer' || this.isGuestMode) return;
 
                     const project = this.projects.find(p => p.id === this.selectedProjectId);
                     if (!project) return;
@@ -4712,7 +4991,7 @@
                 async resolvePhotoUrl(path) {
                     if (!path || path.startsWith('data:') || path.startsWith('blob:') || path.startsWith('http')) return path || '';
                     if (this.photoUrlCache[path] && this.photoUrlCache[path].expiresAt > Date.now()) return this.photoUrlCache[path].url;
-                    if (!this.supabaseClient || !this.authUser) return '';
+                    if (!this.supabaseClient || (!this.authUser && !this.isGuestMode)) return '';
                     const { data, error } = await this.supabaseClient.storage.from(this.supabasePhotoBucket).createSignedUrl(path, 3600);
                     if (error) { console.warn('照片簽名 URL 取得失敗:', error); return ''; }
                     this.photoUrlCache[path] = { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 };
@@ -4796,12 +5075,37 @@
                         this.cloudSyncMessage = '測試隔離中：本機測試資料未寫入 Supabase';
                         return;
                     }
-                    if (this.supabaseClient) {
+                    if (this.supabaseClient && this.authUser && this.authRole !== 'Viewer' && !this.isGuestMode) {
                         this.enqueueCloudWrite(() => this.syncCurrentProjectToSupabase(), '正在寫入目前專案…');
+                    } else if (this.supabaseClient && this.authRole === 'Viewer') {
+                        this.cloudSyncState = 'connected';
+                        this.cloudSyncMessage = '純觀看者：已連線 Supabase，僅讀取／同步最新資料';
                     } else {
                         this.cloudSyncState = 'local';
                         this.cloudSyncMessage = '本機已儲存，但尚未寫入 Supabase';
                     }
+                },
+
+                categoryValues(value) {
+                    if (Array.isArray(value)) {
+                        return value.map(v => String(v || '').trim()).filter(Boolean);
+                    }
+                    const raw = String(value || '').trim();
+                    if (!raw) return [];
+                    return raw.split('、').map(v => v.trim()).filter(Boolean);
+                },
+
+                categoryValue(values) {
+                    return this.categoryValues(values).filter((v, i, arr) => arr.indexOf(v) === i).join('、');
+                },
+
+                hasCategory(value, target) {
+                    const wanted = String(target || '').trim();
+                    return !!wanted && this.categoryValues(value).includes(wanted);
+                },
+
+                categoryDisplay(value) {
+                    return this.categoryValue(value);
                 },
 
                 get filteredItems() {
@@ -4809,7 +5113,7 @@
                         const q = this.searchQuery.toLowerCase();
                         const matchQuery = !q || (item.name && item.name.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)) || (item.code && item.code.toLowerCase().includes(q));
                         const matchSpace = !this.selectedSpaceFilter || item.space === this.selectedSpaceFilter;
-                        const matchCat = !this.selectedCategoryFilter || item.category === this.selectedCategoryFilter;
+                        const matchCat = !this.selectedCategoryFilter || this.hasCategory(item.category, this.selectedCategoryFilter);
                         const matchUnit = !this.selectedUnitFilter || item.unit === this.selectedUnitFilter;
                         const matchStatus = !this.filterStatus || item.repairStatus === this.filterStatus;
                         const matchInsp = !this.filterInspectionStatus || item.inspectionStatus === this.filterInspectionStatus;
@@ -4829,8 +5133,9 @@
                 },
 
                 // PDF 固定排版：第一頁 2 筆，第二頁起每頁 3 筆。
+                // 匯出不受畫面搜尋／篩選條件影響，一律輸出目前專案全部缺失。
                 get pdfPageGroups() {
-                    const items = Array.isArray(this.filteredItems) ? this.filteredItems : [];
+                    const items = Array.isArray(this.items) ? this.items.filter(Boolean) : [];
                     if (!items.length) return [[]];
                     const groups = [items.slice(0, 2)];
                     for (let i = 2; i < items.length; i += 3) groups.push(items.slice(i, i + 3));
@@ -4842,6 +5147,7 @@
                 get unitOptions() { return [...new Set(this.items.map(i => i.unit).filter(Boolean))]; },
 
                 hasPermission(action) {
+                    if (action === 'exportPdf') return !!(this.isSiteAuthenticated || this.isGuestMode || this.authUser);
                     if (this.currentRole === 'Owner') return true;
                     if (this.currentRole === 'Viewer') return false;
                     if (action === 'createProject') return false; // 🔒 只有最高權限 (Owner) 可以新增與刪除專案
@@ -4911,6 +5217,10 @@
 
                 // ===== PDF 智慧匯入 =====
                 openPdfImportModal() {
+                    if (!this.hasPermission('create')) {
+                        alert('目前為純觀看模式，無法使用【從 PDF 智慧匯入驗屋缺失】。仍可使用【匯出 PDF 缺失報告說明書】。');
+                        return;
+                    }
                     this.showPdfExportModalFlag = false;
                     this.showPdfImportModalFlag = true;
                     this.pdfImportStatus = '';
@@ -5364,7 +5674,7 @@
                         return;
                     }
                     if (!this.hasPermission('create')) {
-                        alert('目前帳號沒有新增驗屋缺失項目的權限。');
+                        alert('目前為純觀看模式，無法使用【從 PDF 智慧匯入驗屋缺失】。仍可使用【匯出 PDF 缺失報告說明書】。');
                         return;
                     }
                     const validationProblems = this.validatePdfImportSelection(selected);
@@ -5486,39 +5796,78 @@
                     }
                 },
 
-                exportToPdf() {
-                    const element = document.getElementById('pdf-export-template');
-                    if (!element) return;
-
-                    const scaleFactor = (this.pdfForm.scale || 100) / 100;
-                    const origTransform = element.style.transform;
-                    const origOrigin = element.style.transformOrigin;
-
-                    if (scaleFactor !== 1) {
-                        element.style.transform = `scale(${scaleFactor})`;
-                        element.style.transformOrigin = 'top left';
+                async exportToPdf() {
+                    if (!this.hasPermission('exportPdf')) {
+                        alert('目前帳號沒有 PDF 匯出權限。');
+                        return false;
                     }
-
-                    const opt = {
-                        margin: 5,
-                        filename: `${this.pdfForm.title || '驗屋缺失報告'}.pdf`,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-                        pagebreak: { mode: ['css'] },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    if (typeof html2pdf !== 'function') {
+                        alert('PDF 匯出元件尚未載入完成，請稍候再試。');
+                        return false;
+                    }
+                    const exportItems = Array.isArray(this.items) ? this.items.filter(Boolean) : [];
+                    if (!exportItems.length) {
+                        alert('目前專案沒有可匯出的缺失資料。');
+                        return false;
+                    }
+                    const esc = (value) => String(value ?? '')
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    const photoToDataUrl = async (path) => {
+                        if (!path) return '';
+                        if (String(path).startsWith('data:')) return path;
+                        let url = '';
+                        try { url = await this.resolvePhotoUrl(path); } catch (e) { console.warn('PDF 相片 URL 解析失敗:', e); }
+                        if (!url) return '';
+                        try {
+                            const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+                            if (!response.ok) return url;
+                            const blob = await response.blob();
+                            return await new Promise(resolve => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result || '');
+                                reader.onerror = () => resolve(url);
+                                reader.readAsDataURL(blob);
+                            });
+                        } catch (e) { return url; }
                     };
-
-                    html2pdf().set(opt).from(element).save().then(() => {
-                        element.style.transform = origTransform;
-                        element.style.transformOrigin = origOrigin;
+                    const pages = [exportItems.slice(0, 2)];
+                    for (let i = 2; i < exportItems.length; i += 3) pages.push(exportItems.slice(i, i + 3));
+                    const host = document.createElement('div');
+                    host.id = 'housecheck-pdf-export-working';
+                    Object.assign(host.style, { position:'fixed', left:'0', top:'0', width:'790px', background:'#fff', zIndex:'2147483646', pointerEvents:'none', opacity:'1', visibility:'visible', fontFamily:"'Noto Sans TC',sans-serif", color:'#1e293b', boxSizing:'border-box' });
+                    try {
+                        const pageHtml = [];
+                        for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+                            const pageItems = pages[pageIndex];
+                            const itemHtml = [];
+                            for (const item of pageItems) {
+                                const photoBlocks = [];
+                                for (const pType of (this.pdfForm.photoTypes || ['defect','repair'])) {
+                                    const photos = this.getPhotosByType(item, pType) || [];
+                                    const src = photos[0] ? await photoToDataUrl(photos[0]) : '';
+                                    photoBlocks.push(`<div style="flex:1;text-align:center;max-width:50%;"><div style="font-size:10px;font-weight:bold;color:#475569;margin-bottom:3px;">${pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')}</div><div style="width:100%;height:150px;border:1px solid #e2e8f0;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:4px;">${src ? `<img src="${esc(src)}" crossorigin="anonymous" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<span style="font-size:10px;color:#94a3b8;">（尚無相片）</span>'}</div></div>`);
+                                }
+                                itemHtml.push(`<div style="height:320px;border:1.5px solid #475569;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;border-radius:6px;overflow:hidden;background:#fff;box-sizing:border-box;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="background:#f1f5f9;border-bottom:1px solid #cbd5e1;"><td style="padding:6px 10px;width:15%;font-weight:bold;border-right:1px solid #cbd5e1;color:#334155;">類別</td><td style="padding:6px 10px;width:35%;border-right:1px solid #cbd5e1;">${esc(item.category || '')}</td><td style="padding:6px 10px;width:15%;font-weight:bold;border-right:1px solid #cbd5e1;color:#334155;">檢測區域</td><td style="padding:6px 10px;width:35%;font-weight:bold;color:#2563eb;">${esc((item.unit || '') + ' ' + (item.space || ''))}</td></tr><tr><td style="padding:6px 10px;font-weight:bold;border-right:1px solid #cbd5e1;background:#f8fafc;color:#334155;">缺失說明</td><td style="padding:6px 10px;" colspan="3">${esc((item.name || '') + (item.remark ? '（' + item.remark + '）' : ''))}</td></tr></table><div style="padding:7px 9px;border-bottom:1px solid #cbd5e1;background:#fafafa;"><div style="display:flex;gap:9px;justify-content:center;align-items:center;">${photoBlocks.join('')}</div></div><div style="padding:5px 11px;background:#fff;display:flex;justify-content:space-between;align-items:center;font-size:11px;"><span style="font-weight:bold;color:#1e293b;">複檢欄位區域：</span><div style="display:flex;gap:14px;font-size:11px;"><span>□ 待修繕</span><span>□ 修繕中</span><span>□ 修繕完成</span></div></div></div>`);
+                            }
+                            const meta = pageIndex === 0 ? `<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;border:1px solid #cbd5e1;"><tr><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;width:15%;">委託人</td><td style="padding:8px 12px;border:1px solid #cbd5e1;width:35%;">${esc(this.pdfForm.client || '【】')}</td><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;width:15%;">建案</td><td style="padding:8px 12px;border:1px solid #cbd5e1;width:35%;">${esc(this.pdfForm.projectName || this.currentProjectName || '【】')}</td></tr><tr><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;">標的物地址</td><td style="padding:8px 12px;border:1px solid #cbd5e1;">${esc(this.pdfForm.address || '【】')}</td><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;">備註</td><td style="padding:8px 12px;border:1px solid #cbd5e1;">${esc(this.pdfForm.remark || '【】')}</td></tr></table>` : '';
+                            pageHtml.push(`<div style="width:790px;height:1075px;padding:24px;background:#fff;box-sizing:border-box;overflow:hidden;page-break-after:${pageIndex === pages.length - 1 ? 'auto' : 'always'};break-after:${pageIndex === pages.length - 1 ? 'auto' : 'page'};"><div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid #0f172a;"><h1 style="font-size:22px;font-weight:bold;color:#0f172a;margin:0;">【${esc(this.pdfForm.title || this.currentProjectName || '驗屋缺失報告')}】缺失報告說明書</h1><span style="font-size:11px;color:#64748b;">第 ${pageIndex + 1} 頁</span></div>${meta}<div style="font-size:15px;font-weight:bold;padding:7px 12px;background:#1e293b;color:#fff;margin-bottom:10px;border-radius:4px;">標的屋檢驗相片及說明</div>${itemHtml.join('')}</div>`);
+                        }
+                        host.innerHTML = pageHtml.join('');
+                        document.body.appendChild(host);
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                        const opt = { margin:5, filename:`${this.pdfForm.title || this.currentProjectName || '驗屋缺失報告'}.pdf`, image:{type:'jpeg',quality:0.97}, html2canvas:{scale:2,useCORS:true,allowTaint:false,logging:false,backgroundColor:'#ffffff',scrollX:0,scrollY:0,windowWidth:1024,windowHeight:1400}, pagebreak:{mode:['css']}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+                        await html2pdf().set(opt).from(host).save();
                         this.showPdfExportModalFlag = false;
-                    }).catch(err => {
+                        return true;
+                    } catch (err) {
                         console.error('PDF 匯出失敗', err);
-                        element.style.transform = origTransform;
-                        element.style.transformOrigin = origOrigin;
-                    });
+                        alert(`PDF 匯出失敗：${err?.message || String(err)}`);
+                        return false;
+                    } finally {
+                        if (host.parentNode) host.parentNode.removeChild(host);
+                    }
                 },
-
                 // 進入專案管理時，永遠恢復目前作用中的專案，而不是回到第一筆。
                 openProjectsTab() {
                     const rememberedId = this.appStorageGet('hongyuan_selected_project_id');
@@ -5895,10 +6244,14 @@
                         method: this.methodList.includes(d.method) ? d.method : (this.methodList[0] || '目視檢驗'),
                         unit: this.unitList.includes(d.unit) ? d.unit : (this.unitList[0] || 'A3-01')
                     };
+                    const defaultCategories = this.categoryValues(d.category || fallback.category);
+                    this.newItemCategorySelection = defaultCategories.filter(c => this.categoryList.includes(c));
+                    if (!this.newItemCategorySelection.length && fallback.category) this.newItemCategorySelection = [fallback.category];
+                    this.newItemCategoryMenuOpen = false;
                     this.newItemForm = {
                         name: '',
                         space: fallback.space,
-                        category: fallback.category,
+                        category: this.categoryValue(this.newItemCategorySelection),
                         method: fallback.method,
                         unit: fallback.unit,
                         dueDate: '',
@@ -6009,6 +6362,10 @@
                         alert('請輸入項目名稱！');
                         return;
                     }
+                    if (!this.newItemCategorySelection.length) {
+                        alert('請至少選擇一個工種／類別。');
+                        return;
+                    }
                     const nextCode = this.getNextItemCode();
                     const newItem = {
                         id: Date.now().toString(),
@@ -6016,7 +6373,7 @@
                         code: nextCode,
                         name: this.newItemForm.name.trim(),
                         space: this.newItemForm.space,
-                        category: this.newItemForm.category,
+                        category: this.categoryValue(this.newItemCategorySelection.length ? this.newItemCategorySelection : this.newItemForm.category),
                         method: this.newItemForm.method,
                         unit: this.newItemForm.unit,
                         repairStatus: '待修繕',
@@ -6055,15 +6412,22 @@
                         if (value && !base.includes(value)) base.unshift(value);
                         return base;
                     };
+                    const withHistoricalCategories = (list, value) => {
+                        const base = Array.isArray(list) ? [...list] : [];
+                        const historical = this.categoryValues(value);
+                        return [...historical.filter(v => v && !base.includes(v)), ...base];
+                    };
                     this.editSpaceOptions = withHistoricalValue(this.spaceList, clone.space);
-                    this.editCategoryOptions = withHistoricalValue(this.categoryList, clone.category);
+                    this.editCategoryOptions = withHistoricalCategories(this.categoryList, clone.category);
                     this.editMethodOptions = withHistoricalValue(this.methodList, clone.method);
                     this.editUnitOptions = withHistoricalValue(this.unitList, clone.unit);
+                    this.editItemCategorySelection = this.categoryValues(clone.category);
+                    this.editItemCategoryMenuOpen = false;
 
                     this.editItemForm = {
                         ...clone,
                         space: clone.space || '',
-                        category: clone.category || '',
+                        category: this.categoryValue(this.editItemCategorySelection),
                         method: clone.method || '',
                         unit: clone.unit || '',
                         remark: String(clone.remark || '').slice(0, 50)
@@ -6107,6 +6471,68 @@
                     this.persistLocalProjectState();
                 },
 
+                openInlineCategoryEditor(item) {
+                    if (!item || !this.hasPermission('edit')) return;
+                    this.categoryQuickEditItemId = item.id;
+                    const available = Array.isArray(this.categoryList) ? [...this.categoryList] : [];
+                    const current = this.categoryValues(item.category);
+                    const missingHistorical = current.filter(v => v && !available.includes(v));
+                    // 編輯器把歷史值與目前共用選項一起列出；移除歷史值不會把它重新寫回共用設定。
+                    this.categoryQuickEditOptions = [...missingHistorical, ...available.filter(v => !missingHistorical.includes(v))];
+                    this.categoryQuickEditSelection = current.filter(v => this.categoryQuickEditOptions.includes(v));
+                    this.categoryQuickEditMenuOpen = true;
+                },
+
+                cancelInlineCategoryEditor() {
+                    this.categoryQuickEditItemId = '';
+                    this.categoryQuickEditSelection = [];
+                    this.categoryQuickEditOptions = [];
+                    this.categoryQuickEditMenuOpen = false;
+                },
+
+                async saveInlineCategoryEditor() {
+                    if (!this.hasPermission('edit')) {
+                        this.cancelInlineCategoryEditor();
+                        return;
+                    }
+                    const item = this.items.find(i => i.id === this.categoryQuickEditItemId);
+                    if (!item) {
+                        this.cancelInlineCategoryEditor();
+                        return;
+                    }
+                    if (!this.categoryQuickEditSelection.length) {
+                        alert('至少需要保留一個工種／類別；如需清空請使用完整編輯功能。');
+                        return;
+                    }
+                    const nextCategory = this.categoryValue(this.categoryQuickEditSelection);
+                    if (nextCategory === this.categoryValue(item.category)) {
+                        this.cancelInlineCategoryEditor();
+                        return;
+                    }
+
+                    const nextItem = {
+                        ...item,
+                        category: nextCategory,
+                        updatedAt: new Date().toISOString()
+                    };
+                    const index = this.items.findIndex(i => i.id === item.id);
+                    this.items[index] = nextItem;
+                    const project = this.projects.find(p => p.id === this.selectedProjectId);
+                    if (project) {
+                        const pidx = (project.items || []).findIndex(i => i.id === item.id);
+                        if (pidx !== -1) project.items[pidx] = JSON.parse(JSON.stringify(nextItem));
+                    }
+                    this.persistLocalProjectState();
+
+                    if (this.supabaseClient && this.authUser && !this.isTestMode) {
+                        this.enqueueCloudWrite(
+                            () => this.syncItemFieldsToSupabase([nextItem], ['category']),
+                            '正在安全同步類別／工種（不覆蓋照片）…'
+                        );
+                    }
+                    this.cancelInlineCategoryEditor();
+                },
+
                 async saveEditItem() {
                     const index = this.items.findIndex(i => i.id === this.editItemForm.id);
                     if (index === -1) {
@@ -6117,6 +6543,7 @@
                     const previousItem = JSON.parse(JSON.stringify(this.items[index]));
                     const nextItem = {
                         ...this.editItemForm,
+                        category: this.categoryValue(this.editItemCategorySelection),
                         remark: String(this.editItemForm.remark || '').slice(0, 50),
                         projectId: this.selectedProjectId,
                         updatedAt: new Date().toISOString()
@@ -6249,6 +6676,11 @@
                     if (this.optionEditTargetKey === 'unit') this.unitList = filtered;
 
                     this.saveOptionSettingsToLocalStorage();
+                    this.newItemCategorySelection = this.categoryValues(this.newItemCategorySelection).filter(v => this.categoryList.includes(v));
+                    if (this.optionEditTargetKey === 'category') {
+                        const historicalCategories = this.categoryValues(this.editItemCategorySelection);
+                        this.editCategoryOptions = [...historicalCategories.filter(v => v && !this.categoryList.includes(v)), ...this.categoryList];
+                    }
                     this.refreshPdfImportOptionMappings();
 
                     if (this.supabaseClient && this.authRole === 'Owner' && this.authUser) {
