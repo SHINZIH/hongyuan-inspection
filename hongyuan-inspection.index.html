@@ -719,6 +719,73 @@
         .mobile-inspection-card button { -webkit-tap-highlight-color: transparent; }
         /* 相片分類切換只屬於手機操作層，桌面版保持原本照片視窗。 */
         .photo-type-tabs { display: none; }
+        /* 照片檢視／管理視窗：縮小預覽區，讓行動裝置按得到關閉與操作按鈕。 */
+        .photo-modal-card { max-height: 92vh !important; }
+        .photo-modal-stage { min-height: 300px; max-height: 58vh; }
+        .photo-modal-preview { max-height: 48vh !important; }
+        .photo-modal-side { min-height: 0; }
+        .photo-modal-actions { flex-shrink: 0; }
+        @media (max-width: 767px) {
+            .photo-modal-card {
+                width: min(100%, 430px) !important;
+                max-height: 94vh !important;
+                border-radius: 16px !important;
+            }
+            .photo-modal-header {
+                padding: 9px 11px !important;
+            }
+            .photo-modal-header h2 { font-size: 14px !important; }
+            .photo-modal-original-btn {
+                padding: 6px 8px !important;
+                font-size: 10px !important;
+            }
+            .photo-modal-stage {
+                min-height: 190px !important;
+                max-height: 29vh !important;
+                padding: 7px !important;
+            }
+            .photo-modal-stage-inner {
+                border-radius: 10px !important;
+                padding: 4px !important;
+            }
+            .photo-modal-preview {
+                max-height: 22vh !important;
+                max-width: 88vw !important;
+                border-radius: 9px !important;
+            }
+            .photo-modal-thumbs > div {
+                width: 42px !important;
+                height: 42px !important;
+                border-radius: 8px !important;
+            }
+            .photo-modal-side {
+                padding: 10px 11px !important;
+                max-height: 42vh !important;
+                overflow-y: auto !important;
+                gap: 8px !important;
+            }
+            .photo-modal-side > .photo-modal-info { margin-bottom: 0 !important; }
+            .photo-modal-upload-grid {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                gap: 7px !important;
+            }
+            .photo-modal-upload-grid label {
+                min-height: 42px !important;
+                padding: 7px !important;
+                border-radius: 9px !important;
+            }
+            .photo-modal-actions {
+                position: sticky;
+                bottom: 0;
+                background: rgba(255,255,255,.98);
+                padding-top: 8px !important;
+                padding-bottom: calc(4px + env(safe-area-inset-bottom)) !important;
+            }
+            .photo-modal-actions button {
+                min-height: 40px !important;
+            }
+        }
         .mobile-edit-modal-card { max-height: 92vh; }
         @media (max-width: 767px) {
             .desktop-filter-controls { display: none !important; }
@@ -1429,10 +1496,37 @@
                                         <option value="">所有空間</option>
                                         <template x-for="space in spaceOptions" :key="space"><option :value="space" x-text="space"></option></template>
                                     </select>
-                                    <select x-model="selectedCategoryFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 bg-white">
-                                        <option value="">所有類別／工種</option>
-                                        <template x-for="cat in categoryOptions" :key="cat"><option :value="cat" x-text="cat"></option></template>
-                                    </select>
+                                    <div class="category-multi-select w-full sm:w-64" @click.outside="categoryFilterMenuOpen = false">
+                                        <button type="button" class="category-multi-select-summary" @click="categoryFilterMenuOpen = !categoryFilterMenuOpen">
+                                            <div class="category-multi-select-tags">
+                                                <template x-if="selectedCategoryFilters.length === 0">
+                                                    <span class="text-slate-500">所有類別／工種</span>
+                                                </template>
+                                                <template x-for="cat in selectedCategoryFilters" :key="'search-cat-tag-'+cat">
+                                                    <span class="category-multi-select-tag">
+                                                        <span x-text="categoryDisplay(cat)"></span>
+                                                        <i class="fa-solid fa-xmark ml-1" @click.stop="toggleCategoryFilter(cat)"></i>
+                                                    </span>
+                                                </template>
+                                            </div>
+                                            <i class="fa-solid fa-chevron-down chevron"></i>
+                                        </button>
+                                        <div x-show="categoryFilterMenuOpen" x-cloak class="category-multi-select-menu" @click.stop>
+                                            <div class="flex items-center justify-between px-2 py-1">
+                                                <span class="text-[11px] font-bold text-slate-600">類別／工種（可複選）</span>
+                                                <button type="button" @click="clearCategoryFilters()" class="text-[10px] text-slate-400 hover:text-blue-600">清除</button>
+                                            </div>
+                                            <template x-for="cat in categoryOptions" :key="'search-cat-'+cat">
+                                                <label class="category-multi-select-option cursor-pointer">
+                                                    <input type="checkbox"
+                                                           :checked="categoryFilterSelected(cat)"
+                                                           @change="toggleCategoryFilter(cat)"
+                                                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                                    <span x-text="categoryDisplay(cat)"></span>
+                                                </label>
+                                            </template>
+                                        </div>
+                                    </div>
                                     <select x-model="selectedUnitFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 bg-white">
                                         <option value="">所有戶別</option>
                                         <template x-for="unit in unitOptions" :key="unit"><option :value="unit" x-text="unit"></option></template>
@@ -1468,18 +1562,48 @@
                                 <button type="button" @click="batchMode ? exitBatchMode() : (batchMode = true)" class="mobile-compact-btn shrink-0 px-3 py-2.5 border rounded-lg text-xs font-semibold transition" :class="batchMode ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'">
                                     <i class="fa-solid" :class="batchMode ? 'fa-xmark' : 'fa-check-double'"></i><span x-text="batchMode ? '結束多選' : '多選'"></span>
                                 </button>
-                                <button type="button" @click="mobileFilterOpen = !mobileFilterOpen" class="mobile-compact-btn shrink-0 px-3 py-2.5 border rounded-lg text-xs font-semibold transition" :class="mobileFilterOpen || selectedSpaceFilter || selectedCategoryFilter || selectedUnitFilter || filterStatus || filterInspectionStatus ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'">
+                                <button type="button" @click="mobileFilterOpen = !mobileFilterOpen" class="mobile-compact-btn shrink-0 px-3 py-2.5 border rounded-lg text-xs font-semibold transition" :class="mobileFilterOpen || selectedSpaceFilter || selectedCategoryFilters.length || selectedUnitFilter || filterStatus || filterInspectionStatus ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'">
                                     <i class="fa-solid fa-sliders mr-1"></i><span x-text="mobileFilterOpen ? '收起' : '篩選'"></span>
                                 </button>
                             </div>
 
                             <div class="mobile-filter-panel mt-2 gap-2" :class="mobileFilterOpen ? 'mobile-filter-panel-open' : ''">
                                 <select x-model="selectedSpaceFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"><option value="">所有空間</option><template x-for="space in spaceOptions" :key="'mf-s-'+space"><option :value="space" x-text="space"></option></template></select>
-                                <select x-model="selectedCategoryFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"><option value="">所有類別／工種</option><template x-for="cat in categoryOptions" :key="'mf-c-'+cat"><option :value="cat" x-text="cat"></option></template></select>
+                                <div class="category-multi-select" @click.outside="categoryFilterMenuOpen = false">
+                                    <button type="button" class="category-multi-select-summary" @click="categoryFilterMenuOpen = !categoryFilterMenuOpen">
+                                        <div class="category-multi-select-tags">
+                                            <template x-if="selectedCategoryFilters.length === 0">
+                                                <span class="text-slate-500">所有類別／工種</span>
+                                            </template>
+                                            <template x-for="cat in selectedCategoryFilters" :key="'mf-search-cat-tag-'+cat">
+                                                <span class="category-multi-select-tag">
+                                                    <span x-text="categoryDisplay(cat)"></span>
+                                                    <i class="fa-solid fa-xmark ml-1" @click.stop="toggleCategoryFilter(cat)"></i>
+                                                </span>
+                                            </template>
+                                        </div>
+                                        <i class="fa-solid fa-chevron-down chevron"></i>
+                                    </button>
+                                    <div x-show="categoryFilterMenuOpen" x-cloak class="category-multi-select-menu" @click.stop>
+                                        <div class="flex items-center justify-between px-2 py-1">
+                                            <span class="text-[11px] font-bold text-slate-600">類別／工種（可複選）</span>
+                                            <button type="button" @click="clearCategoryFilters()" class="text-[10px] text-slate-400 hover:text-blue-600">清除</button>
+                                        </div>
+                                        <template x-for="cat in categoryOptions" :key="'mf-search-cat-'+cat">
+                                            <label class="category-multi-select-option cursor-pointer">
+                                                <input type="checkbox"
+                                                       :checked="categoryFilterSelected(cat)"
+                                                       @change="toggleCategoryFilter(cat)"
+                                                       class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                                <span x-text="categoryDisplay(cat)"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
                                 <select x-model="selectedUnitFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"><option value="">所有戶別</option><template x-for="unit in unitOptions" :key="'mf-u-'+unit"><option :value="unit" x-text="unit"></option></template></select>
                                 <select x-model="filterStatus" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"><option value="">所有修繕狀態</option><option value="待修繕">待修繕</option><option value="修繕中">修繕中</option><option value="已完成">已完成</option></select>
                                 <select x-model="filterInspectionStatus" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"><option value="">所有工檢狀態</option><option value="待複查">待複查</option><option value="合格">合格</option></select>
-                                <button type="button" @click="searchQuery=''; selectedSpaceFilter=''; selectedCategoryFilter=''; selectedUnitFilter=''; filterStatus=''; filterInspectionStatus=''; currentPage=1" class="col-span-full text-xs text-slate-500 py-2"><i class="fa-solid fa-rotate-left mr-1"></i>清除全部篩選</button>
+                                <button type="button" @click="searchQuery=''; selectedSpaceFilter=''; clearCategoryFilters(); selectedUnitFilter=''; filterStatus=''; filterInspectionStatus=''; currentPage=1" class="col-span-full text-xs text-slate-500 py-2"><i class="fa-solid fa-rotate-left mr-1"></i>清除全部篩選</button>
                             </div>
 
                             <div class="mt-2 mobile-only-view-switch">
@@ -2910,14 +3034,14 @@
 
     <!-- Photo Modal -->
     <div x-show="showPhotoModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs" style="display: none;">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]" @click.stop>
-            <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <div class="photo-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]" @click.stop>
+            <div class="photo-modal-header px-4 sm:px-5 py-2.5 sm:py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
                     <span class="text-[11px] sm:text-xs text-slate-400 font-semibold" x-text="'現場照片 · ' + (currentPhotoItem.unit || 'A3-01')"></span>
                     <h2 class="text-base sm:text-lg font-bold text-slate-800">照片檢視與管理</h2>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button @click="openOriginalImageView()" class="px-2.5 sm:px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1">
+                    <button @click="openOriginalImageView()" class="photo-modal-original-btn px-2.5 sm:px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1">
                         <i class="fa-solid fa-image"></i><span>原圖查看</span>
                     </button>
                     <button @click="closePhotoModal()" class="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition">
@@ -2939,9 +3063,9 @@
             </div>
 
             <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-                <div class="lg:col-span-8 bg-slate-900 p-2 sm:p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[320px] sm:min-h-[480px]">
+                <div class="photo-modal-stage lg:col-span-8 bg-slate-900 p-2 sm:p-4 flex flex-col items-center justify-center relative overflow-hidden">
 
-                    <div class="relative w-full h-full flex flex-col items-center justify-center select-none border-2 border-dashed border-slate-700 rounded-xl p-2"
+                    <div class="photo-modal-stage-inner relative w-full h-full flex flex-col items-center justify-center select-none border-2 border-dashed border-slate-700 rounded-xl p-2"
                          tabindex="0"
                          @dragover.prevent @drop.prevent="handleFileDrop($event)"
                          @paste.prevent.stop="handlePhotoModalPaste($event)">
@@ -2951,12 +3075,12 @@
                                 <div class="relative w-full max-w-full max-h-[72vh] sm:max-h-[70vh] flex items-center justify-center">
                                     <img :src="getPhotoUrl(currentPhotoList()[activePhotoIndex])"
                                          id="previewImageElement"
-                                         class="block w-auto max-w-full max-h-[70vh] sm:max-h-[68vh] lg:max-h-[72vh] rounded-xl shadow-2xl object-contain mx-auto cursor-zoom-in"
+                                         class="photo-modal-preview block w-auto max-w-full max-h-[48vh] sm:max-h-[46vh] lg:max-h-[50vh] rounded-xl shadow-2xl object-contain mx-auto cursor-zoom-in"
                                          @click="openOriginalImageView()"
                                          alt="照片檢視">
                                 </div>
 
-                                <div class="flex items-center space-x-2 overflow-x-auto max-w-full py-1">
+                                <div class="photo-modal-thumbs flex items-center space-x-2 overflow-x-auto max-w-full py-1">
                                     <template x-for="(pUrl, pIdx) in currentPhotoList()" :key="pIdx">
                                         <div @click="activePhotoIndex = pIdx" class="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-xl overflow-hidden border-2 cursor-pointer shrink-0 transition" :class="activePhotoIndex === pIdx ? 'border-blue-500 scale-105 shadow-md' : 'border-slate-700 opacity-60'">
                                             <img :src="getPhotoUrl(pUrl)" x-init="resolvePhotoUrl(pUrl)" class="w-full h-full object-cover">
@@ -2975,8 +3099,8 @@
                     </div>
                 </div>
 
-                <div class="lg:col-span-4 p-4 sm:p-6 flex flex-col justify-between bg-white overflow-y-auto space-y-4">
-                    <div class="space-y-4">
+                <div class="photo-modal-side lg:col-span-4 p-3 sm:p-4 flex flex-col justify-between bg-white overflow-y-auto space-y-3">
+                    <div class="space-y-3 photo-modal-info">
                         <div>
                             <span class="text-xs text-slate-400 font-medium">缺失項目資訊</span>
                             <h3 class="text-base font-bold text-slate-800 mt-0.5" x-text="currentPhotoItem.name"></h3>
@@ -2987,22 +3111,24 @@
                             <div class="space-y-2">
                                 <label class="block text-xs font-semibold text-slate-700">即時拍照 / 上傳檔案 / 拖曳新增</label>
                                 
-                                <label class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
-                                    <i class="fa-solid fa-camera"></i>
-                                    <span>使用相機即時拍照</span>
-                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadPhotosFromInput($event)">
-                                </label>
+                                <div class="photo-modal-upload-grid space-y-2 sm:space-y-2">
+                                    <label class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
+                                        <i class="fa-solid fa-camera"></i>
+                                        <span>拍照</span>
+                                        <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadPhotosFromInput($event)">
+                                    </label>
 
-                                <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
-                                    <i class="fa-solid fa-upload"></i>
-                                    <span>選擇照片檔案上傳</span>
-                                    <input type="file" accept="image/*" class="hidden" @change="uploadPhotosFromInput($event)">
-                                </label>
+                                    <label class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl p-2.5 sm:p-3 flex items-center justify-center text-center cursor-pointer transition text-xs font-semibold space-x-2">
+                                        <i class="fa-solid fa-upload"></i>
+                                        <span>選擇照片</span>
+                                        <input type="file" accept="image/*" class="hidden" @change="uploadPhotosFromInput($event)">
+                                    </label>
+                                </div>
                             </div>
                         </template>
                     </div>
 
-                    <div class="space-y-2 pt-4 border-t border-slate-100">
+                    <div class="photo-modal-actions space-y-2 pt-3 border-t border-slate-100">
                         <template x-if="hasPermission('delete') && currentPhotoList().length > 0">
                             <button @click="deleteActivePhoto()" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-1">
                                 <i class="fa-solid fa-trash-can"></i>
@@ -3495,8 +3621,9 @@
                 // 篩選器
                 searchQuery: '',
                 selectedSpaceFilter: '',
-                selectedCategoryFilter: '',
+                selectedCategoryFilters: [],
                 selectedUnitFilter: '',
+                categoryFilterMenuOpen: false,
                 filterStatus: '',
                 filterInspectionStatus: '',
 
@@ -4170,7 +4297,7 @@
                         activeTab: this.activeTab,
                         viewMode: this.viewMode,
                         selectedSpaceFilter: this.selectedSpaceFilter,
-                        selectedCategoryFilter: this.selectedCategoryFilter,
+                        selectedCategoryFilters: [...this.selectedCategoryFilters],
                         selectedUnitFilter: this.selectedUnitFilter,
                         filterStatus: this.filterStatus,
                         filterInspectionStatus: this.filterInspectionStatus
@@ -4195,7 +4322,9 @@
                     this.activeTab = snap.activeTab || 'inspection';
                     this.viewMode = snap.viewMode || 'table';
                     this.selectedSpaceFilter = snap.selectedSpaceFilter || '';
-                    this.selectedCategoryFilter = snap.selectedCategoryFilter || '';
+                    this.selectedCategoryFilters = Array.isArray(snap.selectedCategoryFilters)
+                        ? [...snap.selectedCategoryFilters]
+                        : (snap.selectedCategoryFilter ? [snap.selectedCategoryFilter] : []);
                     this.selectedUnitFilter = snap.selectedUnitFilter || '';
                     this.filterStatus = snap.filterStatus || '';
                     this.filterInspectionStatus = snap.filterInspectionStatus || '';
@@ -5341,12 +5470,35 @@
                     return this.categoryValue(value);
                 },
 
+                categoryFilterSelected(value) {
+                    return this.selectedCategoryFilters.includes(String(value || '').trim());
+                },
+
+                toggleCategoryFilter(value) {
+                    const cat = String(value || '').trim();
+                    if (!cat) return;
+                    const index = this.selectedCategoryFilters.indexOf(cat);
+                    if (index >= 0) {
+                        this.selectedCategoryFilters.splice(index, 1);
+                    } else {
+                        this.selectedCategoryFilters.push(cat);
+                    }
+                    this.currentPage = 1;
+                },
+
+                clearCategoryFilters() {
+                    this.selectedCategoryFilters = [];
+                    this.categoryFilterMenuOpen = false;
+                    this.currentPage = 1;
+                },
+
                 get filteredItems() {
                     return this.items.filter(item => {
                         const q = this.searchQuery.toLowerCase();
                         const matchQuery = !q || (item.name && item.name.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)) || (item.code && item.code.toLowerCase().includes(q));
                         const matchSpace = !this.selectedSpaceFilter || item.space === this.selectedSpaceFilter;
-                        const matchCat = !this.selectedCategoryFilter || this.hasCategory(item.category, this.selectedCategoryFilter);
+                        const matchCat = this.selectedCategoryFilters.length === 0
+                            || this.selectedCategoryFilters.every(cat => this.hasCategory(item.category, cat));
                         const matchUnit = !this.selectedUnitFilter || item.unit === this.selectedUnitFilter;
                         const matchStatus = !this.filterStatus || item.repairStatus === this.filterStatus;
                         const matchInsp = !this.filterInspectionStatus || item.inspectionStatus === this.filterInspectionStatus;
@@ -5376,7 +5528,13 @@
                 },
 
                 get spaceOptions() { return [...new Set(this.items.map(i => i.space).filter(Boolean))]; },
-                get categoryOptions() { return [...new Set(this.items.map(i => i.category).filter(Boolean))]; },
+                get categoryOptions() {
+                    // 類別/工種搜尋選項必須來自「系統參數設定」的主清單，
+                    // 不依賴目前缺失項目是否曾使用過該工種。
+                    return Array.isArray(this.categoryList)
+                        ? [...new Set(this.categoryList.map(v => String(v || '').trim()).filter(Boolean))]
+                        : [];
+                },
                 get unitOptions() { return [...new Set(this.items.map(i => i.unit).filter(Boolean))]; },
 
                 hasPermission(action) {
@@ -6271,7 +6429,7 @@
                     this.selectedItemIds = [];
                     this.searchQuery = '';
                     this.selectedSpaceFilter = '';
-                    this.selectedCategoryFilter = '';
+                    this.selectedCategoryFilters = [];
                     this.selectedUnitFilter = '';
                     this.filterStatus = '';
                     this.filterInspectionStatus = '';
@@ -6413,6 +6571,16 @@
                     const listKey = this.currentPhotoType + 'Photos';
                     if (!this.currentPhotoItem[listKey]) this.currentPhotoItem[listKey] = [];
                     const oldPhotos = Array.isArray(this.currentPhotoItem[listKey]) ? [...this.currentPhotoItem[listKey]] : [];
+
+                    // 已有照片時，先明確告知「新照片會覆蓋舊照片」；沒有舊照片則不打擾使用者。
+                    if (oldPhotos.length > 0) {
+                        const photoTypeLabel = this.currentPhotoType === 'defect' ? '缺失照片'
+                            : (this.currentPhotoType === 'repair' ? '修繕照片' : '工檢照片');
+                        const confirmed = confirm(
+                            `目前「${photoTypeLabel}」已經有照片。\n\n是否要上傳新照片？\n確認後，舊照片會被覆蓋。`
+                        );
+                        if (!confirmed) return;
+                    }
 
                     // 先上傳新照片，成功後才刪除舊照片，避免新照片上傳失敗造成資料遺失。
                     let replacement = null;
