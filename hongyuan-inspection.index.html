@@ -2289,6 +2289,42 @@
                                 </div>
                             </div>
 
+                            <div x-show="authRole === 'Owner' && authUser && !isTestMode" x-cloak class="p-5 bg-amber-50 rounded-xl border border-amber-200 space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
+                                        <i class="fa-solid fa-user-clock text-amber-600"></i>
+                                        <span>待審核帳號</span>
+                                        <span class="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[11px]" x-show="pendingUsers.length" x-text="pendingUsers.length"></span>
+                                    </h4>
+                                    <button @click="loadPendingUsers()" :disabled="pendingUsersLoading" class="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 disabled:opacity-50 rounded-lg text-xs font-semibold text-amber-700">
+                                        <i class="fa-solid fa-rotate mr-1" :class="pendingUsersLoading && 'fa-spin'"></i>重新整理
+                                    </button>
+                                </div>
+                                <p class="text-[11px] text-slate-500">新註冊的帳號需由 Owner 核准後才能看到資料。核准後角色無法在此再更改；拒絕會刪除該帳號。</p>
+                                <div class="text-xs text-red-600" x-show="pendingUsersError" x-text="pendingUsersError"></div>
+                                <div class="text-xs text-slate-400" x-show="!pendingUsersLoading && !pendingUsers.length && !pendingUsersError">目前沒有待審核的帳號。</div>
+                                <div class="space-y-2" x-show="pendingUsers.length">
+                                    <template x-for="u in pendingUsers" :key="u.id">
+                                        <div class="p-3 bg-white border border-amber-100 rounded-lg flex flex-col sm:flex-row sm:items-center gap-2">
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-sm font-semibold text-slate-800 truncate" x-text="u.email"></div>
+                                                <div class="text-[11px] text-slate-400" x-text="'註冊時間：' + formatSyncTime(u.created_at)"></div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <select x-model="pendingRoleChoice[u.id]" class="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
+                                                    <option value="Viewer">純觀看者</option>
+                                                    <option value="Vendor">廠商</option>
+                                                    <option value="Inspector">驗屋人員</option>
+                                                    <option value="Admin">工務/管理員</option>
+                                                </select>
+                                                <button @click="approvePendingUser(u)" :disabled="!!pendingActionUserId" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold">核准</button>
+                                                <button @click="rejectPendingUser(u)" :disabled="!!pendingActionUserId" class="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-50 disabled:opacity-50 text-rose-600 rounded-lg text-xs font-semibold">拒絕</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
                             <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
                                 <h4 class="font-bold text-slate-800 flex items-center space-x-2">
                                     <i class="fa-solid fa-user-shield text-blue-600"></i>
@@ -3567,6 +3603,13 @@
                 tempOwnerPassword: '',
 
                 // 專案資料
+                // 待審核帳號（僅 Owner，權限由資料庫函式驗證）
+                pendingUsers: [],
+                pendingUsersLoading: false,
+                pendingUsersError: '',
+                pendingRoleChoice: {},
+                pendingActionUserId: '',
+
                 projects: [
                     { id: 'p1', name: '國泰央北建案 B1 區', items: [] }
                 ],
@@ -4023,7 +4066,7 @@
                             this.registerErrorMsg = '';
                         } else {
                             this.showRegisterForm = false;
-                            this.registerErrorMsg = '註冊成功。若 Supabase 啟用 Email 驗證，請先完成信箱驗證，再使用新帳號登入。首次登入預設為純觀看者，請通知管理員更改權限。';
+                            this.registerErrorMsg = '註冊成功。若 Supabase 啟用 Email 驗證，請先完成信箱驗證，再使用新帳號登入。新帳號需等待管理員審核通過後才能登入。';
                             this.loginErrorMsg = this.registerErrorMsg;
                         }
                     } catch (err) {
@@ -4180,6 +4223,20 @@
                                 .maybeSingle();
                             if (error) throw error;
 
+                            // 新註冊帳號需經 Owner 核准後才能進入系統
+                            if (!data || data.role === 'Pending') {
+                                try { await this.supabaseClient.auth.signOut({ scope: 'local' }); } catch (e) {}
+                                this.authUser = null;
+                                this.isSiteAuthenticated = false;
+                                this.cloudDataReady = false;
+                                this.cloudDataLoading = false;
+                                this.authSessionReady = false;
+                                this.authRole = 'Viewer';
+                                this.currentRole = 'Viewer';
+                                this.loginErrorMsg = '此帳號尚在等待管理員審核，核准後才能登入系統。';
+                                return false;
+                            }
+
                             const role = ['Owner','Admin','Inspector','Vendor','Viewer'].includes(data?.role) ? data.role : 'Viewer';
                             this.authRole = role;
                             this.currentRole = role;
@@ -4218,6 +4275,7 @@
                             this.cloudDataReady = true;
                             this.isSiteAuthenticated = true;
                             this.authSessionReady = true;
+                            if (this.authRole === 'Owner') this.loadPendingUsers();
                             return true;
                         } catch (err) {
                             console.error('讀取使用者角色或 Supabase 資料失敗:', err);
@@ -4253,6 +4311,61 @@
                     } finally {
                         this.authSessionHandlingPromise = null;
                         this.authSessionHandlingUserId = '';
+                    }
+                },
+
+                async loadPendingUsers() {
+                    if (!this.supabaseClient || !this.authUser || this.authRole !== 'Owner' || this.isTestMode) return;
+                    this.pendingUsersLoading = true;
+                    this.pendingUsersError = '';
+                    try {
+                        const { data, error } = await this.supabaseClient.rpc('list_pending_users');
+                        if (error) throw error;
+                        this.pendingUsers = Array.isArray(data) ? data : [];
+                        this.pendingUsers.forEach(u => {
+                            if (!this.pendingRoleChoice[u.id]) this.pendingRoleChoice[u.id] = 'Viewer';
+                        });
+                    } catch (err) {
+                        console.error('讀取待審核帳號失敗:', err);
+                        this.pendingUsersError = err?.message || '讀取待審核帳號失敗。';
+                    } finally {
+                        this.pendingUsersLoading = false;
+                    }
+                },
+
+                async approvePendingUser(user) {
+                    if (!user?.id || this.pendingActionUserId) return;
+                    const role = this.pendingRoleChoice[user.id] || 'Viewer';
+                    const roleLabel = { Admin: '工務/管理員', Inspector: '驗屋人員', Vendor: '廠商', Viewer: '純觀看者' }[role] || role;
+                    if (!confirm(`確定核准「${user.email}」為「${roleLabel}」嗎？`)) return;
+                    this.pendingActionUserId = user.id;
+                    this.pendingUsersError = '';
+                    try {
+                        const { error } = await this.supabaseClient.rpc('approve_user', { target_user_id: user.id, new_role: role });
+                        if (error) throw error;
+                        await this.loadPendingUsers();
+                    } catch (err) {
+                        console.error('核准帳號失敗:', err);
+                        this.pendingUsersError = err?.message || '核准帳號失敗。';
+                    } finally {
+                        this.pendingActionUserId = '';
+                    }
+                },
+
+                async rejectPendingUser(user) {
+                    if (!user?.id || this.pendingActionUserId) return;
+                    if (!confirm(`確定拒絕並刪除「${user.email}」這個待審核帳號嗎？此動作無法復原。`)) return;
+                    this.pendingActionUserId = user.id;
+                    this.pendingUsersError = '';
+                    try {
+                        const { error } = await this.supabaseClient.rpc('reject_user', { target_user_id: user.id });
+                        if (error) throw error;
+                        await this.loadPendingUsers();
+                    } catch (err) {
+                        console.error('拒絕帳號失敗:', err);
+                        this.pendingUsersError = err?.message || '拒絕帳號失敗。';
+                    } finally {
+                        this.pendingActionUserId = '';
                     }
                 },
 
