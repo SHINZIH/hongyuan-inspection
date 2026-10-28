@@ -1949,7 +1949,7 @@
                                                 ]" :key="item.id+'-thumb-'+cfg.type">
                                                     <button type="button" @click.stop="openPhotoModal(item, cfg.type)" class="group relative mobile-photo-thumb-square rounded-md overflow-hidden border border-slate-200 bg-slate-100" :aria-label="cfg.label + '照片管理'" :title="cfg.label + '照片管理'">
                                                         <template x-if="(item[cfg.type+'Photos'] || []).length > 0">
-                                                            <img :src="getPhotoUrl((item[cfg.type+'Photos'] || [])[0])" class="w-full h-full object-cover" :alt="cfg.label + '縮圖'">
+                                                            <img :src="getThumbUrl((item[cfg.type+'Photos'] || [])[0])" @error="onThumbError((item[cfg.type+'Photos'] || [])[0], $event)" class="w-full h-full object-cover" :alt="cfg.label + '縮圖'">
                                                         </template>
                                                         <template x-if="(item[cfg.type+'Photos'] || []).length === 0">
                                                             <span class="w-full h-full flex items-center justify-center text-slate-300"><i class="fa-solid fa-image text-sm"></i></span>
@@ -2645,7 +2645,7 @@
                                                 <div class="text-[10px] font-bold text-slate-500 mb-1" x-text="pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')"></div>
                                                 <div class="h-20 bg-slate-200 rounded flex items-center justify-center overflow-hidden">
                                                     <template x-if="getPhotosByType(item, pType).length > 0">
-                                                        <img :src="getPhotoUrl(getPhotosByType(item, pType)[0])" class="max-h-full max-w-full object-contain">
+                                                        <img :src="getThumbUrl(getPhotosByType(item, pType)[0])" @error="onThumbError(getPhotosByType(item, pType)[0], $event)" class="max-h-full max-w-full object-contain">
                                                     </template>
                                                     <template x-if="getPhotosByType(item, pType).length === 0">
                                                         <span class="text-[10px] text-slate-400">（無照片）</span>
@@ -3012,7 +3012,7 @@
                         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between hover:shadow-md transition">
                             <div class="relative h-44 bg-slate-900 overflow-hidden cursor-pointer" @click="openPhotoModal(item, galleryPhotoType)">
                                 <template x-if="getPhotosByType(item, galleryPhotoType).length > 0">
-                                    <img :src="getPhotoUrl(getPhotosByType(item, galleryPhotoType)[0])" class="w-full h-full object-cover hover:scale-105 transition duration-300" alt="照片縮圖">
+                                    <img :src="getThumbUrl(getPhotosByType(item, galleryPhotoType)[0])" @error="onThumbError(getPhotosByType(item, galleryPhotoType)[0], $event)" class="w-full h-full object-cover hover:scale-105 transition duration-300" alt="照片縮圖">
                                 </template>
                                 <template x-if="getPhotosByType(item, galleryPhotoType).length === 0">
                                     <div class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
@@ -3119,7 +3119,7 @@
                                 <div class="photo-modal-thumbs flex items-center space-x-2 overflow-x-auto max-w-full py-1">
                                     <template x-for="(pUrl, pIdx) in currentPhotoList()" :key="pIdx">
                                         <div @click="activePhotoIndex = pIdx" class="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-xl overflow-hidden border-2 cursor-pointer shrink-0 transition" :class="activePhotoIndex === pIdx ? 'border-blue-500 scale-105 shadow-md' : 'border-slate-700 opacity-60'">
-                                            <img :src="getPhotoUrl(pUrl)" x-init="resolvePhotoUrl(pUrl)" class="w-full h-full object-cover">
+                                            <img :src="getThumbUrl(pUrl)" @error="onThumbError(pUrl, $event)" class="w-full h-full object-cover">
                                         </div>
                                     </template>
                                 </div>
@@ -3294,7 +3294,7 @@
                             <div class="flex flex-wrap gap-3 mt-3">
                                 <template x-for="(pUrl, pIdx) in newItemForm.defectPhotos" :key="pIdx">
                                     <div class="new-item-photo-thumb relative w-28 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-100">
-                                        <img :src="getPhotoUrl(pUrl)" class="w-full h-full object-cover">
+                                        <img :src="getThumbUrl(pUrl)" @error="onThumbError(pUrl, $event)" class="w-full h-full object-cover">
                                         <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer" @click="removeNewItemPhoto(pIdx)">
                                             <i class="fa-solid fa-trash text-white text-xs"></i>
                                         </div>
@@ -3500,6 +3500,7 @@
                 authUser: null,
                 isLoggingIn: false,
                 photoUrlCache: {},
+                photoThumbMissing: {},
                 
                 // Supabase 雲端對接與 Realtime 廣播狀態
                 supabaseUrl: localStorage.getItem('hongyuan_supabase_url') || 'https://cpgdfijbebqfvvbnjsqz.supabase.co',
@@ -4238,6 +4239,7 @@
                             }
 
                             const role = ['Owner','Admin','Inspector','Vendor','Viewer'].includes(data?.role) ? data.role : 'Viewer';
+                            this.loadPersistedPhotoCache();
                             this.authRole = role;
                             this.currentRole = role;
                             this.loginErrorMsg = '';
@@ -4377,6 +4379,7 @@
                         try { localStorage.setItem('hongyuan_test_mode_interrupted', '1'); } catch (e) {}
                     }
                     if (this.supabaseClient && !this.isGuestMode) await this.supabaseClient.auth.signOut();
+                    this.clearPersistedPhotoCache();
                     this.isGuestMode = false;
                     this.isSiteAuthenticated = false;
                     this.cloudDataReady = false;
@@ -5114,7 +5117,10 @@
                 async removeStoragePhotos(paths) {
                     if (!this.supabaseClient || !Array.isArray(paths) || !paths.length) return;
 
-                    const safePaths = [...new Set(paths.filter(Boolean).map(String))];
+                    const originalPaths = paths.filter(Boolean).map(String);
+                    // 一併刪除對應縮圖（不存在時 Storage 會略過）
+                    const thumbPaths = originalPaths.filter(p => this.isManagedInspectionPhotoPath(p)).map(p => this.thumbPathFor(p));
+                    const safePaths = [...new Set([...originalPaths, ...thumbPaths])];
                     for (let i = 0; i < safePaths.length; i += 100) {
                         const chunk = safePaths.slice(i, i + 100);
                         const { error } = await this.supabaseClient
@@ -5129,6 +5135,7 @@
 
                         chunk.forEach(path => delete this.photoUrlCache[path]);
                     }
+                    this.persistPhotoCacheSoon();
                 },
 
                 async deleteItemsFromSupabase(ids) {
@@ -5265,7 +5272,13 @@
                     this.orphanScanState = 'scanning'; this.orphanScanLastError = ''; this.orphanScanResults = []; this.orphanScanDeletedCount = 0;
                     try {
                         const [allFiles, referenced] = await Promise.all([this.listAllStorageFiles(''), this.getReferencedStoragePhotoPaths()]);
-                        this.orphanScanResults = [...new Set(allFiles.filter(path => this.isManagedInspectionPhotoPath(path)).filter(path => !referenced.has(path)))].sort();
+                        const orphanOriginals = allFiles.filter(path => this.isManagedInspectionPhotoPath(path)).filter(path => !referenced.has(path));
+                        // 縮圖：原圖已不被引用時才算孤兒
+                        const orphanThumbs = allFiles.filter(path => path.startsWith('thumbs/')).filter(path => {
+                            const original = path.slice('thumbs/'.length);
+                            return this.isManagedInspectionPhotoPath(original) && !referenced.has(original);
+                        });
+                        this.orphanScanResults = [...new Set([...orphanOriginals, ...orphanThumbs])].sort();
                         this.orphanScanLastAt = new Date().toISOString();
                         this.orphanScanState = 'ready';
                     } catch (err) {
@@ -5384,10 +5397,8 @@
                     this.appStorageSet('hongyuan_projects', JSON.stringify(this.projects));
                 },
 
-                async compressImage(file) {
+                async compressImage(file, maxSide = 1600, quality = 0.78, fallbackToOriginal = true) {
                     if (!file || !file.type?.startsWith('image/')) return null;
-                    const maxSide = 1600;
-                    const quality = 0.78;
                     try {
                         const bitmap = await createImageBitmap(file);
                         const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
@@ -5399,9 +5410,104 @@
                         bitmap.close();
                         return await new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/jpeg', quality));
                     } catch (e) {
+                        if (!fallbackToOriginal) return null;
                         console.warn('照片壓縮失敗，改用原檔:', e);
                         return file;
                     }
+                },
+
+                // 縮圖存放於 thumbs/<原圖路徑>，清單畫面只載入縮圖以節省流量
+                thumbPathFor(path) {
+                    return `thumbs/${path}`;
+                },
+
+                isStoragePhotoPath(path) {
+                    return !!path && !/^(data:|blob:|http)/.test(path);
+                },
+
+                getThumbUrl(path) {
+                    if (!this.isStoragePhotoPath(path) || this.photoThumbMissing[path]) return this.getPhotoUrl(path);
+                    const cached = this.photoUrlCache[this.thumbPathFor(path)];
+                    if (cached && cached.expiresAt > Date.now()) return cached.url;
+                    this.resolveThumbUrl(path);
+                    return '';
+                },
+
+                async resolveThumbUrl(path) {
+                    if (!this.isStoragePhotoPath(path) || this.photoThumbMissing[path]) return this.resolvePhotoUrl(path);
+                    if (!this.supabaseClient || (!this.authUser && !this.isGuestMode)) return '';
+                    const url = await this.resolvePhotoUrl(this.thumbPathFor(path), { quiet: true });
+                    if (url) return url;
+                    // 舊照片沒有縮圖：記住後改用原圖
+                    this.photoThumbMissing[path] = Date.now();
+                    this.persistPhotoCacheSoon();
+                    return this.resolvePhotoUrl(path);
+                },
+
+                onThumbError(path, event) {
+                    if (!this.isStoragePhotoPath(path) || this.photoThumbMissing[path]) return;
+                    // 只處理「縮圖網址」載入失敗；網址尚未取得（空白）時不算
+                    const src = event?.target?.getAttribute?.('src') || '';
+                    const cached = this.photoUrlCache[this.thumbPathFor(path)];
+                    if (!src || !cached || src !== cached.url) return;
+                    this.photoThumbMissing[path] = Date.now();
+                    delete this.photoUrlCache[this.thumbPathFor(path)];
+                    this.persistPhotoCacheSoon();
+                },
+
+                // 照片網址存在瀏覽器（依使用者區分），重新整理後沿用同一網址，瀏覽器才能使用快取
+                photoCacheStorageKey() {
+                    return this.authUser?.id ? `hongyuan_photo_url_cache_${this.authUser.id}` : '';
+                },
+
+                loadPersistedPhotoCache() {
+                    const key = this.photoCacheStorageKey();
+                    if (!key) return;
+                    try {
+                        const raw = localStorage.getItem(key);
+                        if (!raw) return;
+                        const saved = JSON.parse(raw) || {};
+                        const now = Date.now();
+                        Object.entries(saved.urls || {}).forEach(([p, v]) => {
+                            if (v && typeof v.url === 'string' && v.expiresAt > now && !this.photoUrlCache[p]) this.photoUrlCache[p] = v;
+                        });
+                        // 「沒有縮圖」記錄 1 天後失效，之後補上的縮圖才會被使用
+                        Object.entries(saved.thumbMissing || {}).forEach(([p, t]) => { if (typeof t === 'number' && now - t < 24 * 60 * 60 * 1000) this.photoThumbMissing[p] = t; });
+                    } catch (e) {}
+                },
+
+                persistPhotoCacheSoon() {
+                    if (this._photoCachePersistTimer) return;
+                    this._photoCachePersistTimer = setTimeout(() => {
+                        this._photoCachePersistTimer = null;
+                        this.persistPhotoCache();
+                    }, 1500);
+                },
+
+                persistPhotoCache() {
+                    const key = this.photoCacheStorageKey();
+                    if (!key) return;
+                    const now = Date.now();
+                    const urls = {};
+                    Object.entries(this.photoUrlCache).forEach(([p, v]) => {
+                        if (v && v.expiresAt > now && /^https:\/\//.test(v.url || '')) urls[p] = { url: v.url, expiresAt: v.expiresAt };
+                    });
+                    try {
+                        localStorage.setItem(key, JSON.stringify({ urls, thumbMissing: this.photoThumbMissing }));
+                    } catch (e) {
+                        try { localStorage.removeItem(key); } catch (_) {}
+                    }
+                },
+
+                clearPersistedPhotoCache() {
+                    if (this._photoCachePersistTimer) { clearTimeout(this._photoCachePersistTimer); this._photoCachePersistTimer = null; }
+                    try {
+                        Object.keys(localStorage)
+                            .filter(k => k.startsWith('hongyuan_photo_url_cache_'))
+                            .forEach(k => localStorage.removeItem(k));
+                    } catch (e) {}
+                    this.photoUrlCache = {};
+                    this.photoThumbMissing = {};
                 },
 
                 async uploadImageToCloud(file, photoType = 'defect', itemId = 'draft') {
@@ -5432,8 +5538,19 @@
                         const safeType = String(photoType || 'defect').replace(/[^a-zA-Z0-9_-]/g, '_');
                         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}.jpg`;
                         const filePath = `${safeProjectId}/${safeType}/${safeItemId}/${fileName}`;
-                        const { data, error } = await this.supabaseClient.storage.from(this.supabasePhotoBucket).upload(filePath, compressed, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' });
+                        const { data, error } = await this.supabaseClient.storage.from(this.supabasePhotoBucket).upload(filePath, compressed, { cacheControl: '31536000', upsert: false, contentType: 'image/jpeg' });
                         if (error) throw error;
+                        // 另存縮圖；失敗不影響原圖，畫面會自動改用原圖
+                        try {
+                            const thumb = await this.compressImage(compressed, 480, 0.72, false);
+                            if (thumb) {
+                                const { error: thumbError } = await this.supabaseClient.storage.from(this.supabasePhotoBucket).upload(this.thumbPathFor(data.path), thumb, { cacheControl: '31536000', upsert: false, contentType: 'image/jpeg' });
+                                if (thumbError) throw thumbError;
+                            }
+                        } catch (thumbErr) {
+                            console.warn('縮圖上傳失敗，將改用原圖顯示:', thumbErr);
+                            this.photoThumbMissing[data.path] = Date.now();
+                        }
                         await this.resolvePhotoUrl(data.path);
                         if (!hadPending) {
                             this.cloudSyncPending = Math.max(0, this.cloudSyncPending - 1);
@@ -5463,14 +5580,30 @@
                     return '';
                 },
 
-                async resolvePhotoUrl(path) {
+                async resolvePhotoUrl(path, options = {}) {
                     if (!path || path.startsWith('data:') || path.startsWith('blob:') || path.startsWith('http')) return path || '';
                     if (this.photoUrlCache[path] && this.photoUrlCache[path].expiresAt > Date.now()) return this.photoUrlCache[path].url;
                     if (!this.supabaseClient || (!this.authUser && !this.isGuestMode)) return '';
-                    const { data, error } = await this.supabaseClient.storage.from(this.supabasePhotoBucket).createSignedUrl(path, 3600);
-                    if (error) { console.warn('照片簽名 URL 取得失敗:', error); return ''; }
-                    this.photoUrlCache[path] = { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 };
-                    return data.signedUrl;
+                    // 同一張照片同時只發一次請求
+                    if (!this._photoUrlInflight) this._photoUrlInflight = {};
+                    if (this._photoUrlInflight[path]) return this._photoUrlInflight[path];
+                    const task = (async () => {
+                        // 網址有效 7 天，快取 6 天，到期前會自動換新
+                        const { data, error } = await this.supabaseClient.storage.from(this.supabasePhotoBucket).createSignedUrl(path, 7 * 24 * 60 * 60);
+                        if (error) {
+                            if (!options.quiet) console.warn('照片簽名 URL 取得失敗:', error);
+                            return '';
+                        }
+                        this.photoUrlCache[path] = { url: data.signedUrl, expiresAt: Date.now() + 6 * 24 * 60 * 60 * 1000 };
+                        this.persistPhotoCacheSoon();
+                        return data.signedUrl;
+                    })();
+                    this._photoUrlInflight[path] = task;
+                    try {
+                        return await task;
+                    } finally {
+                        delete this._photoUrlInflight[path];
+                    }
                 },
 
                 checkLockoutStatus() {
@@ -6758,8 +6891,10 @@
                         const removedPath = this.currentPhotoItem[listKey][this.activePhotoIndex];
                         this.currentPhotoItem[listKey].splice(this.activePhotoIndex, 1);
                         if (removedPath && !removedPath.startsWith('data:') && !removedPath.startsWith('http') && this.supabaseClient) {
-                            this.supabaseClient.storage.from(this.supabasePhotoBucket).remove([removedPath]).catch(err => console.warn('雲端照片刪除失敗:', err));
+                            this.supabaseClient.storage.from(this.supabasePhotoBucket).remove([removedPath, this.thumbPathFor(removedPath)]).catch(err => console.warn('雲端照片刪除失敗:', err));
                             delete this.photoUrlCache[removedPath];
+                            delete this.photoUrlCache[this.thumbPathFor(removedPath)];
+                            this.persistPhotoCacheSoon();
                         }
                         if (this.activePhotoIndex >= this.currentPhotoItem[listKey].length) {
                             this.activePhotoIndex = Math.max(0, this.currentPhotoItem[listKey].length - 1);
