@@ -219,6 +219,17 @@
             border-top-color: #e4ecf2 !important;
         }
         .sidebar-footer .text-emerald-400 { color:#2b7a7a !important; }
+        /* 電腦版側邊選單收合：只顯示圖示 */
+        @media (min-width: 768px) {
+            .app-sidebar { transition: width .2s ease, transform .3s ease-in-out; }
+            .app-sidebar.sidebar-collapsed { width: 4.5rem !important; }
+            .app-sidebar.sidebar-collapsed .sidebar-label { display: none !important; }
+            .app-sidebar.sidebar-collapsed .sidebar-brand { padding: 1.25rem 0 !important; justify-content: center; }
+            .app-sidebar.sidebar-collapsed nav { padding: 1rem .625rem !important; }
+            .app-sidebar.sidebar-collapsed nav a { justify-content: center !important; padding: .7rem 0 !important; }
+            .app-sidebar.sidebar-collapsed .sidebar-toggle-wrap { padding-left: .625rem !important; padding-right: .625rem !important; }
+            .app-sidebar.sidebar-collapsed .sidebar-footer { display: none !important; }
+        }
         .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .app-filterbar { align-items: stretch; }
         .mobile-sidebar-backdrop { background: rgba(15,23,42,.18); backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
@@ -952,7 +963,14 @@
 <body class="bg-slate-100 text-slate-800 antialiased" x-data="inspectionApp()">
 
     <!-- 🔒 登入 / 註冊 / 訪客入口 -->
-    <div x-show="!isSiteAuthenticated" class="auth-shell fixed inset-0 z-[9999] flex items-center justify-center p-4" style="display: none;">
+    <div x-show="!isSiteAuthenticated && authRestoring" class="auth-shell fixed inset-0 z-[10000] flex items-center justify-center p-4" style="display: none;">
+        <div class="text-center text-slate-100">
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-400"></i>
+            <p class="mt-4 text-sm font-semibold tracking-wide">正在恢復登入，請稍候…</p>
+        </div>
+    </div>
+
+    <div x-show="!isSiteAuthenticated && !authRestoring" class="auth-shell fixed inset-0 z-[9999] flex items-center justify-center p-4" style="display: none;">
         <div class="auth-card w-full max-w-md rounded-3xl p-6 sm:p-8 text-slate-100">
             <div class="text-center">
                 <div class="w-16 h-16 rounded-2xl bg-blue-500/15 text-blue-300 border border-blue-300/20 flex items-center justify-center mx-auto text-3xl shadow-lg">
@@ -1149,14 +1167,14 @@
         </nav>
 
         <!-- Left Sidebar -->
-        <aside :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="app-sidebar fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
+        <aside :class="[mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0', sidebarCollapsed ? 'sidebar-collapsed' : '']" class="app-sidebar fixed md:static inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl z-40 transition-transform duration-300 ease-in-out">
             <div>
                 <!-- Brand / Logo -->
                 <div class="sidebar-brand px-6 py-5 border-b border-slate-800 flex items-center space-x-3">
                     <div class="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
                         <i class="fa-solid fa-house-chimney-user"></i>
                     </div>
-                    <div>
+                    <div class="sidebar-label">
                         <h2 class="text-white font-bold text-sm tracking-wide truncate max-w-[130px]" x-text="currentProjectName"></h2>
                         <span class="text-[11px] font-medium" :class="isRealtimeConnected ? 'text-emerald-400' : 'text-slate-400'" x-text="isRealtimeConnected ? '● 雲端即時連線中' : '○ 本地單機模式'"></span>
                         <span class="text-[10px] font-semibold" :class="cloudSyncStateClass()" x-text="cloudSyncStatusLabel()"></span>
@@ -1165,38 +1183,46 @@
 
                 <!-- Navigation Links -->
                 <nav class="p-4 space-y-1.5 text-sm">
-                    <a href="#" @click.prevent="activeTab = 'inspection'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'inspection' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                    <a href="#" title="自主驗屋初驗清單" @click.prevent="activeTab = 'inspection'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'inspection' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
                         <div class="flex items-center space-x-3">
                             <i class="fa-solid fa-clipboard-list w-5 text-center"></i>
-                            <span>自主驗屋初驗清單</span>
+                            <span class="sidebar-label">自主驗屋初驗清單</span>
                         </div>
-                        <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'inspection' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="items.length"></span>
-                    </a>
-                    
-                    <a href="#" @click.prevent="openProjectsTab(); mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'projects' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
-                        <div class="flex items-center space-x-3">
-                            <i class="fa-solid fa-folder-open w-5 text-center"></i>
-                            <span>專案清單管理</span>
-                        </div>
-                        <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'projects' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="projects.length"></span>
+                        <span class="sidebar-label text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'inspection' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="items.length"></span>
                     </a>
 
-                    <a href="#" @click.prevent="analyticsProjectId = selectedProjectId; activeTab = 'analytics'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'analytics' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                    <a href="#" title="專案清單管理" @click.prevent="openProjectsTab(); mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'projects' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-folder-open w-5 text-center"></i>
+                            <span class="sidebar-label">專案清單管理</span>
+                        </div>
+                        <span class="sidebar-label text-xs px-2 py-0.5 rounded-full font-bold" :class="activeTab === 'projects' ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'" x-text="projects.length"></span>
+                    </a>
+
+                    <a href="#" title="修繕數據統計" @click.prevent="analyticsProjectId = selectedProjectId; activeTab = 'analytics'; mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'analytics' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
                         <div class="flex items-center space-x-3">
                             <i class="fa-solid fa-chart-pie w-5 text-center"></i>
-                            <span>修繕數據統計</span>
+                            <span class="sidebar-label">修繕數據統計</span>
                         </div>
                     </a>
-                    <a href="#" @click.prevent="checkSettingsAccess(); mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'settings' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
+                    <a href="#" title="系統參數設定" @click.prevent="checkSettingsAccess(); mobileSidebarOpen = false" class="flex items-center justify-between px-3.5 py-2.5 rounded-lg transition" :class="activeTab === 'settings' ? 'bg-blue-600 text-white font-medium shadow-sm' : 'hover:bg-slate-800 text-slate-400 hover:text-white'">
                         <div class="flex items-center space-x-3">
                             <i class="fa-solid fa-gear w-5 text-center"></i>
-                            <span>系統參數設定</span>
+                            <span class="sidebar-label">系統參數設定</span>
                         </div>
                     </a>
                 </nav>
             </div>
 
-            <div class="sidebar-footer mt-auto p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
+            <!-- 電腦版：收合／展開選單 -->
+            <div class="sidebar-toggle-wrap hidden md:block px-4 pb-3 mt-auto">
+                <button type="button" @click="toggleSidebarCollapsed()" :title="sidebarCollapsed ? '展開選單' : '收合選單'" :aria-label="sidebarCollapsed ? '展開選單' : '收合選單'" class="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-100 hover:text-slate-700 transition">
+                    <i class="fa-solid" :class="sidebarCollapsed ? 'fa-angles-right' : 'fa-angles-left'"></i>
+                    <span class="sidebar-label">收合選單</span>
+                </button>
+            </div>
+
+            <div class="sidebar-footer p-4 border-t border-slate-800 bg-slate-950/40 text-xs space-y-2">
                 <div class="flex items-center justify-between gap-2 text-slate-400">
                     <span>當前模擬身份</span>
                     <span class="text-emerald-400 font-semibold text-right" x-text="currentRoleName()"></span>
@@ -1231,24 +1257,10 @@
                     </div>
 
                     <div class="app-header-actions flex items-center space-x-3">
-                        <div class="role-selector flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs">
-                            <span class="text-slate-500 font-medium"><i class="fa-solid fa-user-shield mr-1"></i>權限角色：</span>
-                            <select :value="currentRole" @change="onRoleSelectChange($event)" class="bg-transparent font-bold text-blue-600 focus:outline-none cursor-pointer">
-                                <option value="Owner">最高權限 (Owner)</option>
-                                <option value="Inspector" x-text="customInspectors[0] ? (customInspectors[0].name + ' (' + customInspectors[0].title + ')') : '驗屋人員'"></option>
-                                <template x-for="insp in customInspectors.slice(1)" :key="insp.id">
-                                    <option :value="'CustomInspector_' + insp.id" x-text="insp.name + ' (' + insp.title + ')'"></option>
-                                </template>
-                                <option value="Vendor" x-text="customVendors[0] ? (customVendors[0].name + ' (' + customVendors[0].title + ')') : '廠商'"></option>
-                                <template x-for="ven in customVendors.slice(1)" :key="ven.id">
-                                    <option :value="'CustomVendor_' + ven.id" x-text="ven.name + ' (' + ven.title + ')'"></option>
-                                </template>
-                                <option value="Admin" x-text="customAdmins[0] ? (customAdmins[0].name + ' (' + customAdmins[0].title + ')') : '工務/管理員'"></option>
-                                <template x-for="adm in customAdmins.slice(1)" :key="adm.id">
-                                    <option :value="'CustomAdmin_' + adm.id" x-text="adm.name + ' (' + adm.title + ')'"></option>
-                                </template>
-                                <option value="Viewer">純觀看者 (Viewer)</option>
-                            </select>
+                        <!-- 目前登入身分（僅顯示，權限由 Supabase 帳號決定） -->
+                        <div class="role-selector flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs" :title="authUser?.email ? ('登入帳號：' + authUser.email) : ''">
+                            <span class="text-slate-500 font-medium"><i class="fa-solid fa-user-shield mr-1"></i>目前身分：</span>
+                            <span class="font-bold text-blue-600 whitespace-nowrap" x-text="isGuestMode ? '訪客（僅觀看）' : getRoleLabel(authRole)"></span>
                         </div>
 
                         <!-- 📄 匯出 PDF 按鈕 -->
@@ -3492,6 +3504,7 @@
         function inspectionApp() {
             return {
                 mobileSidebarOpen: false,
+                sidebarCollapsed: (() => { try { return localStorage.getItem('hongyuan_sidebar_collapsed') === '1'; } catch (e) { return false; } })(),
                 mobileFilterOpen: false,
                 activeTab: 'inspection',
                 viewMode: 'table',
@@ -3562,6 +3575,9 @@
 
                 // 🔒 網站登入核實狀態
                 isSiteAuthenticated: false,
+                // 重新整理時正在恢復登入狀態（顯示載入畫面，不顯示登入表單）
+                authRestoring: true,
+                idleCheckTimer: null,
                 isGuestMode: false,
                 showRegisterForm: false,
                 siteLoginAccount: '',
@@ -3800,6 +3816,10 @@
                     if (savedUrl) this.supabaseUrl = savedUrl;
                     if (savedKey) this.supabaseKey = savedKey;
                     this.showSupabaseSetup = !this.supabaseKey;
+                    if (!this.supabaseKey) this.authRestoring = false;
+                    // 保險：最多等 20 秒，避免載入畫面卡住
+                    setTimeout(() => { this.authRestoring = false; }, 20000);
+                    this.setupIdleLogout();
 
                     const savedUsers = this.appStorageGet('hongyuan_system_users');
                     if (savedUsers) {
@@ -3931,7 +3951,8 @@
 
                         this.supabaseClient.auth.getSession()
                             .then(({ data }) => this.handleAuthSession(data?.session || null, 'INITIAL_SESSION'))
-                            .catch(err => console.warn('取得 Supabase Session 失敗:', err));
+                            .catch(err => console.warn('取得 Supabase Session 失敗:', err))
+                            .finally(() => { this.authRestoring = false; });
 
                         this.realtimeChannel = this.supabaseClient
                             .channel('hongyuan-inspection-db-changes')
@@ -3968,7 +3989,57 @@
                         this.supabaseClient = null;
                         this.supabaseClientFingerprint = '';
                         this.isRealtimeConnected = false;
+                        this.authRestoring = false;
                         return null;
+                    }
+                },
+
+                toggleSidebarCollapsed() {
+                    this.sidebarCollapsed = !this.sidebarCollapsed;
+                    try { localStorage.setItem('hongyuan_sidebar_collapsed', this.sidebarCollapsed ? '1' : '0'); } catch (e) {}
+                },
+
+                // ===== 閒置 8 小時自動登出 =====
+                IDLE_LIMIT_MS: 8 * 60 * 60 * 1000,
+
+                touchActivity(force = false) {
+                    const now = Date.now();
+                    // 每分鐘最多寫入一次
+                    if (!force && this._lastActivityWrite && now - this._lastActivityWrite < 60 * 1000) return;
+                    this._lastActivityWrite = now;
+                    try { localStorage.setItem('hongyuan_last_activity', String(now)); } catch (e) {}
+                },
+
+                isIdleExpired() {
+                    let last = 0;
+                    try { last = Number(localStorage.getItem('hongyuan_last_activity')) || 0; } catch (e) {}
+                    // 沒有紀錄（例如第一次使用新版）不視為閒置
+                    if (!last) return false;
+                    return Date.now() - last > this.IDLE_LIMIT_MS;
+                },
+
+                setupIdleLogout() {
+                    const onActivity = () => { if (this.isSiteAuthenticated && this.authUser) this.touchActivity(); };
+                    ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(evt => {
+                        window.addEventListener(evt, onActivity, { passive: true });
+                    });
+                    const check = () => {
+                        if (this.isSiteAuthenticated && this.authUser && !this.isTestMode && this.isIdleExpired()) this.idleLogout();
+                    };
+                    // 手機從背景切回來時立刻檢查
+                    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+                    if (this.idleCheckTimer) clearInterval(this.idleCheckTimer);
+                    this.idleCheckTimer = setInterval(check, 60 * 1000);
+                },
+
+                async idleLogout() {
+                    if (this._idleLoggingOut) return;
+                    this._idleLoggingOut = true;
+                    try {
+                        await this.logout();
+                        this.loginErrorMsg = '閒置超過 8 小時，已自動登出，請重新登入。';
+                    } finally {
+                        this._idleLoggingOut = false;
                     }
                 },
 
@@ -4107,6 +4178,8 @@
                             }
                         }
 
+                        // 先更新操作時間，避免剛登入就被判定為閒置
+                        this.touchActivity(true);
                         // Supabase 官方 v2 登入方式：Email + Password。
                         const { data, error } = await this.supabaseClient.auth.signInWithPassword({
                             email,
@@ -4173,6 +4246,18 @@
                     }
 
                     const userId = session.user.id;
+
+                    // 恢復登入時：閒置超過 8 小時就登出，要求重新輸入密碼
+                    if (!this.isSiteAuthenticated && !this.isTestMode && this.isIdleExpired()) {
+                        try { await this.supabaseClient?.auth?.signOut({ scope: 'local' }); } catch (e) {}
+                        this.clearPersistedPhotoCache();
+                        this.authUser = null;
+                        this.cloudDataReady = false;
+                        this.cloudDataLoading = false;
+                        this.authSessionReady = false;
+                        this.loginErrorMsg = '閒置超過 8 小時，已自動登出，請重新登入。';
+                        return false;
+                    }
 
                     // Token refresh / 使用者更新：只更新 session，絕不重新做整套資料初始化。
                     if ((authEvent === 'TOKEN_REFRESHED' || authEvent === 'USER_UPDATED') && this.authUser?.id === userId && this.isSiteAuthenticated) {
@@ -4277,6 +4362,7 @@
                             this.cloudDataReady = true;
                             this.isSiteAuthenticated = true;
                             this.authSessionReady = true;
+                            this.touchActivity(true);
                             if (this.authRole === 'Owner') this.loadPendingUsers();
                             return true;
                         } catch (err) {
