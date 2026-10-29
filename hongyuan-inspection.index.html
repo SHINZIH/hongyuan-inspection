@@ -7,53 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- PDF 匯出核心套件 -->
-    <script>
-        // PDF 匯出核心：用 html2canvas + jsPDF 逐頁產生，避免 305 筆／102 頁形成超長 canvas 導致白頁。
-        window.__housecheckPdfLoader = (() => {
-            const URLS = {
-                html2canvas: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-                jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-                html2pdf: 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-            };
-            let promise = null;
-            const ready = () => typeof window.html2canvas === 'function' && !!(window.jspdf?.jsPDF || window.jsPDF) && typeof window.html2pdf === 'function';
-            const load = (src) => new Promise((resolve, reject) => {
-                const existing = Array.from(document.scripts).find(s => s.src === src);
-                if (existing) {
-                    if (existing.dataset.housecheckLoaded === '1') return resolve();
-                    existing.addEventListener('load', resolve, { once:true });
-                    existing.addEventListener('error', () => reject(new Error('PDF 元件載入失敗')), { once:true });
-                    return;
-                }
-                const script = document.createElement('script');
-                script.src = src;
-                script.async = true;
-                script.onload = () => { script.dataset.housecheckLoaded = '1'; resolve(); };
-                script.onerror = () => reject(new Error('PDF 元件載入失敗'));
-                document.head.appendChild(script);
-            });
-            async function start() {
-                if (ready()) return true;
-                if (promise) return promise;
-                promise = (async () => {
-                    try {
-                        if (typeof window.html2canvas !== 'function') await load(URLS.html2canvas);
-                        if (!(window.jspdf?.jsPDF || window.jsPDF)) await load(URLS.jspdf);
-                        if (typeof window.html2pdf !== 'function') await load(URLS.html2pdf);
-                        if (!ready()) throw new Error('PDF 核心元件未完整初始化');
-                        return true;
-                    } catch (e) {
-                        promise = null;
-                        return false;
-                    }
-                })();
-                return promise;
-            }
-            return { start, isReady: ready };
-        })();
-        window.__housecheckPdfLoader.start();
-    </script>
     <!-- PDF 智慧匯入：優先使用網站同資料夾的本地 PDF.js；找不到才退回 CDN。
          若要讓「PDF 本身的辨識」完全不依賴網路，請把 pdf.min.js 與 pdf.worker.min.js 放到 ./pdfjs/。 -->
     <script>
@@ -917,6 +870,49 @@
             border: 1px solid #e2e8f0;
             background: #f1f5f9;
         }
+        /* 清單表格：「操作」欄固定在右側，左右捲動時永遠看得到編輯按鈕 */
+        .sticky-action-col {
+            position: sticky;
+            right: 0;
+            z-index: 5;
+            background: #fff;
+            box-shadow: -8px 0 10px -8px rgba(15, 23, 42, 0.22);
+        }
+        th.sticky-action-col { background: #f8fafc; z-index: 6; }
+        tr.row-clickable:hover > td.sticky-action-col { background: #f5f8fe; }
+        td.sticky-action-col.is-selected { background: #eff6ff; }
+        tr.row-clickable { cursor: pointer; }
+
+        /* 清單表格：表格不做上下捲動；表頭上方與表格下方各有一條左右滑桿 */
+        .table-scroll-area { overflow-x: auto !important; overflow-y: visible; }
+        .table-scroll-area thead th { background: #f8fafc; box-shadow: inset 0 -1px 0 #e2e8f0; }
+        .table-top-scroll {
+            overflow-x: auto;
+            overflow-y: hidden;
+            background: #f8fafc;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        .table-top-scroll-inner { height: 1px; }
+        .table-top-scroll::-webkit-scrollbar { height: 8px; }
+        .table-top-scroll::-webkit-scrollbar-track { background: transparent; }
+        .table-top-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+        .table-top-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* 鎖定在左側的欄位 */
+        .sticky-left-col {
+            position: sticky;
+            z-index: 3;
+            background: #fff;
+            overflow-wrap: anywhere;
+        }
+        .sticky-left-last { box-shadow: 8px 0 10px -8px rgba(15, 23, 42, 0.22); }
+        .table-scroll-area thead th.sticky-left-col,
+        .table-scroll-area thead th.sticky-action-col { z-index: 7; background: #f8fafc; }
+        .table-scroll-area thead th.sticky-left-last { box-shadow: inset 0 -1px 0 #e2e8f0, 8px 0 10px -8px rgba(15, 23, 42, 0.22); }
+        .table-scroll-area thead th.sticky-action-col { box-shadow: inset 0 -1px 0 #e2e8f0, -8px 0 10px -8px rgba(15, 23, 42, 0.22); }
+        tr.row-clickable:hover > td.sticky-left-col { background: #f5f8fe; }
+        td.sticky-left-col.is-selected { background: #eff6ff; }
+
         .category-multi-select { position: relative; }
         .category-multi-select-menu {
             position: absolute;
@@ -1269,6 +1265,14 @@
                             <span>匯出 PDF 報告</span>
                         </button>
 
+                        <!-- 🗂️ 照片備份 ZIP（僅電腦版，純觀看者/訪客不可用） -->
+                        <template x-if="canDownloadBackup()">
+                            <button @click="openBackupModal()" class="backup-action hidden lg:flex bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium transition items-center space-x-1.5 shadow-sm" title="將專案照片依缺失名稱與戶別命名，打包成 ZIP 下載">
+                                <i class="fa-solid fa-file-zipper"></i>
+                                <span>備份下載 ZIP</span>
+                            </button>
+                        </template>
+
                         <template x-if="hasPermission('create')">
                             <button @click="openNewItemModal()" class="new-item-action bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-2 shadow-sm" title="新增驗屋缺失項目" aria-label="新增驗屋缺失項目">
                                 <i class="fa-solid fa-plus"></i>
@@ -1499,11 +1503,35 @@
                         <div class="app-filterbar bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200">
                             <!-- 桌面版：保留原本完整操作 -->
                             <div class="desktop-filter-controls flex flex-col lg:flex-row justify-between items-center gap-4">
-                                <div class="filter-items flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                                    <div class="relative w-full sm:w-56">
+                                <div class="filter-items flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                                    <!-- 搜尋：平常只顯示放大鏡，點開才出現輸入框；有輸入內容時保持展開 -->
+                                    <button type="button" x-show="!(desktopSearchOpen || searchQuery)"
+                                            @click="desktopSearchOpen = true; $nextTick(() => $refs.desktopSearchInput && $refs.desktopSearchInput.focus())"
+                                            class="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-blue-600 bg-white" title="搜尋項目、備註、編號">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                    </button>
+                                    <div x-show="desktopSearchOpen || searchQuery" class="relative w-full sm:w-56">
                                         <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-magnifying-glass"></i></span>
-                                        <input type="text" x-model="searchQuery" @input="currentPage = 1" placeholder="搜尋項目、備註..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <input type="text" x-ref="desktopSearchInput" x-model="searchQuery" @input="currentPage = 1"
+                                               @blur="if (!searchQuery) desktopSearchOpen = false"
+                                               @keydown.escape="searchQuery = ''; currentPage = 1; desktopSearchOpen = false; $event.target.blur()"
+                                               placeholder="搜尋項目、備註、編號..." class="w-full pl-10 pr-8 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <button type="button" x-show="searchQuery" @mousedown.prevent @click="searchQuery = ''; currentPage = 1; desktopSearchOpen = false" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600" title="清除搜尋"><i class="fa-solid fa-xmark text-xs"></i></button>
                                     </div>
+
+                                    <!-- 篩選：可整組折疊，收起時以數字標示目前啟用幾個篩選 -->
+                                    <button type="button" @click="toggleDesktopFilters()"
+                                            class="h-9 px-3 border rounded-lg text-sm flex items-center gap-1.5 transition"
+                                            :class="desktopFiltersOpen ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                                            :title="desktopFiltersOpen ? '收起篩選條件' : '展開篩選條件'">
+                                        <i class="fa-solid fa-filter text-xs"></i>
+                                        <span>篩選</span>
+                                        <span :class="activeFilterCount > 0 ? 'inline-flex' : 'hidden'" class="min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold items-center justify-center" x-text="activeFilterCount"></span>
+                                        <i class="fa-solid text-[10px]" :class="desktopFiltersOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                    </button>
+                                    <button type="button" @click="clearAllFilters()" :class="activeFilterCount > 0 ? 'inline-block' : 'hidden'" class="text-xs text-slate-400 hover:text-rose-600 px-1">清除篩選</button>
+
+                                    <div x-show="desktopFiltersOpen" class="contents">
                                     <select x-model="selectedSpaceFilter" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 bg-white">
                                         <option value="">所有空間</option>
                                         <template x-for="space in spaceOptions" :key="space"><option :value="space" x-text="space"></option></template>
@@ -1549,6 +1577,7 @@
                                     <select x-model="filterInspectionStatus" @change="currentPage = 1" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 bg-white">
                                         <option value="">所有工檢狀態</option><option value="待複查">待複查</option><option value="合格">合格</option>
                                     </select>
+                                    </div>
                                 </div>
                                 <div class="view-switch flex items-center space-x-2 shrink-0">
                                     <button type="button"
@@ -1636,6 +1665,54 @@
                                         <span>顯示 <b class="text-slate-700" x-text="((currentPage - 1) * pageSize) + 1"></b>–<b class="text-slate-700" x-text="Math.min(currentPage * pageSize, filteredItems.length)"></b> / <b class="text-slate-700" x-text="filteredItems.length"></b> 筆</span>
                                     </div>
                                     <div class="flex items-center gap-2">
+                                        <div class="relative" @pointerdown.outside="showColumnSettings = false" @keydown.escape="showColumnSettings = false">
+                                            <button type="button" @click="showColumnSettings = !showColumnSettings"
+                                                    class="h-10 px-3 border rounded-lg font-semibold flex items-center gap-1.5 transition"
+                                                    :class="showColumnSettings ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'"
+                                                    title="選擇要顯示哪些欄位、哪些欄位鎖定在左側">
+                                                <i class="fa-solid fa-table-columns"></i><span>欄位設定</span>
+                                                <span :class="hiddenColumnKeys.length ? 'inline' : 'hidden'" class="text-[10px] text-slate-400 font-normal" x-text="'(隱藏 ' + hiddenColumnKeys.length + ')'"></span>
+                                            </button>
+                                            <div x-show="showColumnSettings" x-cloak class="absolute right-0 top-full mt-2 z-[60] w-72 bg-white border border-slate-200 rounded-xl shadow-2xl p-3 text-xs">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <span class="font-bold text-slate-700">欄位設定</span>
+                                                    <button type="button" @click="resetTableColumnSettings()" class="text-[11px] text-slate-400 hover:text-blue-600">恢復預設</button>
+                                                </div>
+                                                <div class="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 text-[10px] text-slate-400 px-1 pb-1 border-b border-slate-100">
+                                                    <span>欄位</span><span class="text-center">顯示</span><span class="text-center">鎖定左側</span>
+                                                </div>
+                                                <div class="max-h-80 overflow-y-auto pr-1">
+                                                    <template x-for="col in tableColumns" :key="'colset-'+col.key">
+                                                        <div class="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 px-1 py-1.5 rounded-lg hover:bg-slate-50">
+                                                            <span class="truncate" :class="hiddenColumnKeys.includes(col.key) ? 'text-slate-400 line-through' : 'text-slate-700'" x-text="col.label"></span>
+                                                            <template x-if="col.key !== 'action'">
+                                                                <button type="button" @click="toggleColumnHidden(col.key)"
+                                                                        class="mx-auto w-7 h-7 rounded-md flex items-center justify-center"
+                                                                        :class="hiddenColumnKeys.includes(col.key) ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'"
+                                                                        :title="hiddenColumnKeys.includes(col.key) ? '目前隱藏，點一下顯示' : '目前顯示，點一下隱藏'">
+                                                                    <i class="fa-solid text-[11px]" :class="hiddenColumnKeys.includes(col.key) ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                                                </button>
+                                                            </template>
+                                                            <template x-if="col.key === 'action'">
+                                                                <span class="mx-auto w-7 h-7 rounded-md flex items-center justify-center text-slate-300" title="操作欄一定顯示"><i class="fa-solid fa-eye text-[11px]"></i></span>
+                                                            </template>
+                                                            <template x-if="col.key !== 'action'">
+                                                                <button type="button" @click="toggleColumnLocked(col.key)" :disabled="hiddenColumnKeys.includes(col.key)"
+                                                                        class="mx-auto w-7 h-7 rounded-md flex items-center justify-center disabled:opacity-30"
+                                                                        :class="lockedColumnKeys.includes(col.key) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'"
+                                                                        :title="lockedColumnKeys.includes(col.key) ? '取消鎖定' : '鎖定在左側'">
+                                                                    <i class="fa-solid text-[10px]" :class="lockedColumnKeys.includes(col.key) ? 'fa-lock' : 'fa-lock-open'"></i>
+                                                                </button>
+                                                            </template>
+                                                            <template x-if="col.key === 'action'">
+                                                                <span class="text-center text-[10px] text-slate-400 whitespace-nowrap">固定右側</span>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                                <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">鎖定的欄位會排在最左邊，左右捲動時固定不動。也可以直接拖曳表頭調整順序。設定在登入期間有效，登出後自動恢復預設。</p>
+                                            </div>
+                                        </div>
                                         <label class="flex items-center gap-1 text-slate-500">
                                             <span>每頁</span>
                                             <select x-model.number="pageSize" @change="currentPage = 1; savePageSizeSetting()" class="border border-slate-200 rounded-lg bg-white px-2 py-1.5 font-semibold">
@@ -1669,12 +1746,14 @@
                         <!-- 📁 列表模式 (Table View) -->
                         <template x-if="viewMode === 'table'">
                             <div class="desktop-inspection-table bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                <div class="overflow-x-auto">
+                                <!-- 表頭上方的左右滑桿：與下方表格同步捲動 -->
+                                <div class="table-top-scroll" style="display:none;"><div class="table-top-scroll-inner"></div></div>
+                                <div class="overflow-x-auto table-scroll-area" x-init="$nextTick(() => setupTableDualScroll($el.previousElementSibling, $el))">
                                     <table class="w-full text-left border-collapse text-sm">
                                         <thead>
                                             <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-xs uppercase tracking-wider select-none">
                                                 <template x-if="batchMode">
-                                                    <th class="p-2 w-14 text-center">
+                                                    <th class="p-2 w-14 text-center" :class="lockedVisibleCount ? 'sticky-left-col' : ''" :style="lockedVisibleCount ? 'left:0;width:56px;min-width:56px;max-width:56px;' : ''">
                                                         <button type="button"
                                                                 class="batch-check-hit mx-auto"
                                                                 @click.stop="toggleSelectAll()"
@@ -1686,17 +1765,18 @@
                                                         </button>
                                                     </th>
                                                 </template>
-                                                <template x-for="(col, index) in tableColumns" :key="col.key">
-                                                    <th class="p-3 draggable-col transition hover:bg-slate-100" 
-                                                        :class="col.align === 'center' ? 'text-center' : ''" 
-                                                        :style="'min-width: ' + col.width"
+                                                <template x-for="(col, index) in visibleTableColumns" :key="col.key">
+                                                    <th class="p-3 draggable-col transition hover:bg-slate-100"
+                                                        :class="[col.align === 'center' ? 'text-center' : '', columnStickyClass(col)]"
+                                                        :style="columnCellStyle(col)"
                                                         draggable="true"
-                                                        @dragstart="handleHeaderDragStart($event, index)"
+                                                        @dragstart="handleHeaderDragStart($event, col.key)"
                                                         @dragover.prevent
-                                                        @drop="handleHeaderDrop($event, index)">
+                                                        @drop="handleHeaderDrop($event, col.key)">
                                                         <div class="flex items-center space-x-1" :class="col.align === 'center' ? 'justify-center' : ''">
                                                             <i class="fa-solid fa-grip-vertical text-slate-300 text-xs mr-1"></i>
                                                             <span x-text="col.label"></span>
+                                                            <span :class="isColumnLocked(col.key) ? 'inline-flex' : 'hidden'" class="ml-1" title="已鎖定在左側"><i class="fa-solid fa-lock text-[9px] text-blue-400"></i></span>
                                                         </div>
                                                     </th>
                                                 </template>
@@ -1704,7 +1784,9 @@
                                         </thead>
                                         <tbody class="divide-y divide-slate-100">
                                             <template x-for="(item, index) in paginatedItems" :key="item.id">
-                                                <tr class="hover:bg-blue-50/40 transition select-none"
+                                                <tr class="row-clickable hover:bg-blue-50/40 transition select-none"
+                                                    @click="onTableRowClick(item, $event)"
+                                                    :title="batchMode ? '點一下選取／取消選取' : (hasPermission('edit') ? '點一下開啟編輯' : '')"
                                                     @mousedown="startRowPress(item.id)"
                                                     @mouseup="cancelRowPress()"
                                                     @mouseleave="cancelRowPress()"
@@ -1713,7 +1795,7 @@
                                                     :class="selectedItemIds.includes(item.id) ? 'bg-blue-50/80' : ''">
                                                     
                                                     <template x-if="batchMode">
-                                                        <td class="p-1 text-center" @click.stop>
+                                                        <td class="p-1 text-center" @click.stop :class="lockedVisibleCount ? ('sticky-left-col ' + (selectedItemIds.includes(item.id) ? 'is-selected' : '')) : ''" :style="lockedVisibleCount ? 'left:0;width:56px;min-width:56px;max-width:56px;' : ''">
                                                             <button type="button"
                                                                     class="batch-check-hit mx-auto"
                                                                     @click.stop="toggleItemSelection(item.id)"
@@ -1726,10 +1808,10 @@
                                                         </td>
                                                     </template>
 
-                                                    <template x-for="col in tableColumns" :key="col.key">
-                                                        <td class="p-3" :class="col.align === 'center' ? 'text-center' : ''">
+                                                    <template x-for="col in visibleTableColumns" :key="col.key">
+                                                        <td class="p-3" :class="[col.align === 'center' ? 'text-center' : '', columnStickyClass(col), (columnStickyClass(col) && selectedItemIds.includes(item.id)) ? 'is-selected' : '']" :style="isColumnLocked(col.key) ? columnCellStyle(col) : ''">
                                                             <template x-if="col.key === 'code'">
-                                                                <span class="font-medium text-slate-500" x-text="item.code"></span>
+                                                                <span class="font-medium text-slate-500" x-text="displayCode(item)"></span>
                                                             </template>
                                                             <template x-if="col.key === 'name'">
                                                                 <div>
@@ -1855,7 +1937,7 @@
                                             </template>
                                             <template x-if="filteredItems.length === 0">
                                                 <tr>
-                                                    <td :colspan="tableColumns.length + (batchMode ? 1 : 0)" class="p-12 text-center text-slate-400">
+                                                    <td :colspan="visibleTableColumns.length + (batchMode ? 1 : 0)" class="p-12 text-center text-slate-400">
                                                         <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-300"></i>
                                                         <p class="text-sm font-medium">找不到符合條件的驗屋項目</p>
                                                     </td>
@@ -1920,7 +2002,7 @@
                                                        aria-hidden="true">
                                             </button>
                                         </template>
-                                        <span class="font-mono text-[10px] font-bold text-blue-700 shrink-0" x-text="item.code || '-'" ></span>
+                                        <span class="font-mono text-[10px] font-bold text-blue-700 shrink-0" x-text="displayCode(item)" ></span>
                                         <button type="button" @click.stop="hasPermission('edit') ? openEditModal(item) : null" class="text-[10px] text-slate-500 truncate min-w-0 text-left" :class="hasPermission('edit') ? 'hover:text-blue-700 cursor-pointer' : 'cursor-default'" :title="hasPermission('edit') ? '點擊直接編輯工種／類別' : '純觀看者模式'" x-text="(item.space || '-') + ' / ' + (categoryDisplay(item.category) || '-')"></button>
                                         <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded font-semibold bg-blue-50 text-blue-600 shrink-0" x-text="item.unit || '-'" ></span>
                                         <template x-if="hasPermission('edit')">
@@ -2337,186 +2419,6 @@
                                 </div>
                             </div>
 
-                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                                <h4 class="font-bold text-slate-800 flex items-center space-x-2">
-                                    <i class="fa-solid fa-user-shield text-blue-600"></i>
-                                    <span>系統最高權限 (Admin) 登入 Email與密碼設置</span>
-                                </h4>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-xs font-semibold text-slate-700 mb-1">最高權限帳號</label>
-                                        <input type="text" x-model="tempAdminAccount" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="例如：Admin8866">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-semibold text-slate-700 mb-1">最高權限密碼</label>
-                                        <input type="password" x-model="tempAdminPassword" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white" placeholder="輸入新密碼...">
-                                    </div>
-                                </div>
-                                <div class="flex items-center justify-between pt-1">
-                                    <p class="text-xs text-slate-400">帳號與密碼現在由 Supabase Authentication 管理，本頁不顯示或保存預設密碼。</p>
-                                    <button @click="saveAdminCredentials()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-sm">儲存最高權限帳密</button>
-                                </div>
-                            </div>
-
-                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
-                                        <i class="fa-solid fa-users text-blue-600"></i>
-                                        <span>系統登入用戶帳號管理 (最多可設定 20 組)</span>
-                                    </h4>
-                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + systemUsers.length + ' / 20 組'"></span>
-                                </div>
-
-                                <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-3">
-                                    <span class="text-xs font-bold text-blue-600 flex items-center"><i class="fa-solid fa-user-plus mr-1"></i>新增一組登入帳戶：</span>
-                                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                                        <input type="text" x-model="newSystemUser.username" placeholder="登入 Email" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
-                                        <input type="password" x-model="newSystemUser.password" placeholder="登入密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
-                                        <input type="text" x-model="newSystemUser.name" placeholder="使用者姓名/備註" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
-                                        <select x-model="newSystemUser.role" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50">
-                                            <option value="Inspector">驗屋人員權限</option>
-                                            <option value="Admin">工務/管理員權限</option>
-                                            <option value="Vendor">廠商權限</option>
-                                            <option value="Owner">最高權限 (Owner)</option>
-                                            <option value="Viewer">純觀看者 (Viewer)</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex justify-end">
-                                        <button @click="addSystemUser()" :disabled="systemUsers.length >= 20" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1">
-                                            <i class="fa-solid fa-plus"></i><span>新增用戶</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                                    <template x-for="(user, uIdx) in systemUsers" :key="user.id">
-                                        <div class="p-3 bg-white rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-                                            <div class="flex items-center space-x-2 font-mono">
-                                                <span class="w-5 text-center text-slate-400 font-bold" x-text="uIdx + 1"></span>
-                                                <span class="font-bold text-slate-800" x-text="user.username"></span>
-                                                <span class="text-slate-400">/</span>
-                                                <span class="text-slate-500" x-text="'••••••••'"></span>
-                                            </div>
-                                            <div class="flex items-center space-x-2">
-                                                <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-semibold" x-text="user.name || '未填寫姓名'"></span>
-                                                <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded" x-text="getRoleLabel(user.role)"></span>
-                                                <button @click="removeSystemUser(user.id)" class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-xs font-semibold ml-2">
-                                                    <i class="fa-solid fa-trash-can"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </template>
-                                    <template x-if="systemUsers.length === 0">
-                                        <p class="text-center text-xs text-slate-400 py-3 italic">尚無自訂用戶帳號，目前僅有預設最高權限帳號 (Admin8866)</p>
-                                    </template>
-                                </div>
-                            </div>
-
-                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                                <h4 class="font-bold text-slate-800 flex items-center space-x-2">
-                                    <i class="fa-solid fa-key text-blue-600"></i>
-                                    <span>設定最高權限者 (Owner) 快速切換密碼</span>
-                                </h4>
-                                <div class="flex items-center space-x-3">
-                                    <input type="password" x-model="tempOwnerPassword" class="px-3 py-2 border border-slate-300 rounded-lg w-64 text-sm bg-white" placeholder="輸入新密碼">
-                                    <button @click="saveOwnerPassword()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-xs shadow-sm">更新密碼</button>
-                                </div>
-                                <p class="text-xs text-slate-400">Owner 密碼請在 Supabase Authentication 管理；此頁不保存明文密碼。</p>
-                            </div>
-
-                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
-                                        <i class="fa-solid fa-users-gear text-blue-600"></i>
-                                        <span>驗屋人員名單管理 (最多 5 位，第一位為主角色)</span>
-                                    </h4>
-                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + customInspectors.length + ' / 5 位'"></span>
-                                </div>
-                                <div class="divide-y divide-slate-200 space-y-3">
-                                    <template x-for="(insp, index) in customInspectors" :key="insp.id">
-                                        <div class="pt-3 flex flex-wrap items-center gap-3">
-                                            <template x-if="index === 0">
-                                                <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold shrink-0">主角色</span>
-                                            </template>
-                                            <input type="text" x-model="insp.name" placeholder="個人姓名" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-32 bg-white">
-                                            <input type="text" x-model="insp.title" placeholder="頭銜" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs flex-1 min-w-[140px] bg-white">
-                                            <input type="password" x-model="insp.password" placeholder="個人密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-28 bg-white">
-                                            <template x-if="index > 0">
-                                                <button @click="removeInspector(insp.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                                <template x-if="customInspectors.length < 5">
-                                    <button @click="addInspector()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 mt-2">
-                                        <i class="fa-solid fa-user-plus"></i>
-                                        <span>新增一位驗屋人員</span>
-                                    </button>
-                                </template>
-                            </div>
-
-                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
-                                        <i class="fa-solid fa-building text-blue-600"></i>
-                                        <span>廠商名單管理 (最多 5 位，第一位為主角色)</span>
-                                    </h4>
-                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + customVendors.length + ' / 5 位'"></span>
-                                </div>
-                                <div class="divide-y divide-slate-200 space-y-3">
-                                    <template x-for="(ven, index) in customVendors" :key="ven.id">
-                                        <div class="pt-3 flex flex-wrap items-center gap-3">
-                                            <template x-if="index === 0">
-                                                <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold shrink-0">主角色</span>
-                                            </template>
-                                            <input type="text" x-model="ven.name" placeholder="廠商/人員姓名" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-32 bg-white">
-                                            <input type="text" x-model="ven.title" placeholder="工種/頭銜" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs flex-1 min-w-[140px] bg-white">
-                                            <input type="password" x-model="ven.password" placeholder="個人密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-28 bg-white">
-                                            <template x-if="index > 0">
-                                                <button @click="removeVendor(ven.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                                <template x-if="customVendors.length < 5">
-                                    <button @click="addVendor()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 mt-2">
-                                        <i class="fa-solid fa-user-plus"></i>
-                                        <span>新增一位廠商</span>
-                                    </button>
-                                </template>
-                            </div>
-
-                            <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
-                                <div class="flex justify-between items-center">
-                                    <h4 class="font-bold text-slate-800 flex items-center space-x-2">
-                                        <i class="fa-solid fa-user-tie text-blue-600"></i>
-                                        <span>工務/管理員名單管理 (最多 5 位，第一位為主角色)</span>
-                                    </h4>
-                                    <span class="text-xs text-slate-500 font-semibold" x-text="'目前已新增：' + customAdmins.length + ' / 5 位'"></span>
-                                </div>
-                                <div class="divide-y divide-slate-200 space-y-3">
-                                    <template x-for="(adm, index) in customAdmins" :key="adm.id">
-                                        <div class="pt-3 flex flex-wrap items-center gap-3">
-                                            <template x-if="index === 0">
-                                                <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold shrink-0">主角色</span>
-                                            </template>
-                                            <input type="text" x-model="adm.name" placeholder="管理員姓名" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-32 bg-white">
-                                            <input type="text" x-model="adm.title" placeholder="職稱" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs flex-1 min-w-[140px] bg-white">
-                                            <input type="password" x-model="adm.password" placeholder="個人密碼" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-28 bg-white">
-                                            <template x-if="index > 0">
-                                                <button @click="removeAdmin(adm.id)" class="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                                <template x-if="customAdmins.length < 5">
-                                    <button @click="addAdmin()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 mt-2">
-                                        <i class="fa-solid fa-user-plus"></i>
-                                        <span>新增一位工務/管理員</span>
-                                    </button>
-                                </template>
-                            </div>
-
                         </div>
 
                         <div class="flex justify-end pt-4 border-t border-slate-100">
@@ -2526,6 +2428,72 @@
                 </template>
 
             </main>
+        </div>
+    </div>
+
+    <!-- 🗂️ 照片備份 ZIP 下載浮動視窗 -->
+    <div x-show="showBackupModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col p-6 space-y-4 max-h-[92vh]" @click.stop>
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-file-zipper text-emerald-600"></i>
+                    <span>照片備份下載 (ZIP)</span>
+                </h3>
+                <button @click="if (!backupBusy) showBackupModal = false" :disabled="backupBusy" :class="backupBusy ? 'opacity-30 cursor-not-allowed' : ''" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4 text-sm overflow-y-auto pr-1">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">選擇專案</label>
+                    <select x-model="backupForm.projectId" @change="onBackupProjectChange()" :disabled="backupBusy" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm">
+                        <template x-for="p in projects" :key="p.id">
+                            <option :value="p.id" x-text="p.name" :selected="p.id === backupForm.projectId"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">下載資料夾名稱（第一層資料夾，也是 ZIP 檔名）</label>
+                    <input type="text" x-model="backupForm.folderName" :disabled="backupBusy" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm" placeholder="例如：鴻運建案_2026備份">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">要包含的照片</label>
+                    <div class="flex flex-wrap gap-3 text-xs">
+                        <label class="flex items-center gap-1.5"><input type="checkbox" value="defect" x-model="backupForm.photoTypes" :disabled="backupBusy"><span>缺失照片</span><span class="text-slate-400" x-text="'(' + backupPhotoCount('defect') + ')'"></span></label>
+                        <label class="flex items-center gap-1.5"><input type="checkbox" value="repair" x-model="backupForm.photoTypes" :disabled="backupBusy"><span>修繕照片</span><span class="text-slate-400" x-text="'(' + backupPhotoCount('repair') + ')'"></span></label>
+                        <label class="flex items-center gap-1.5"><input type="checkbox" value="inspection" x-model="backupForm.photoTypes" :disabled="backupBusy"><span>工檢照片</span><span class="text-slate-400" x-text="'(' + backupPhotoCount('inspection') + ')'"></span></label>
+                    </div>
+                </div>
+
+                <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-500 leading-relaxed font-mono">
+                    <div class="font-sans font-semibold text-slate-600 mb-1">資料夾結構預覽：</div>
+                    <div x-text="'📁 ' + (sanitizeBackupName(backupForm.folderName) || '備份')"></div>
+                    <div class="pl-4" x-text="'📁 ' + (sanitizeBackupName(backupProjectName()) || '專案')"></div>
+                    <template x-for="t in backupForm.photoTypes" :key="'bk-prev-'+t">
+                        <div class="pl-8" x-text="'📁 ' + backupTypeFolder(t) + '　→ 戶別_缺失名稱.jpg'"></div>
+                    </template>
+                </div>
+
+                <template x-if="backupBusy || backupMessage">
+                    <div class="space-y-1.5">
+                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-emerald-500 transition-all" :style="'width:' + backupProgress + '%'"></div>
+                        </div>
+                        <div class="text-xs text-slate-600" x-text="backupMessage"></div>
+                    </div>
+                </template>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button @click="showBackupModal = false" :disabled="backupBusy" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 rounded-lg text-xs font-semibold text-slate-600">取消</button>
+                <button @click="downloadBackupZip()" :disabled="backupBusy || !backupForm.photoTypes.length" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid" :class="backupBusy ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+                    <span x-text="backupBusy ? '打包中...' : '開始下載 ZIP'"></span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -2565,17 +2533,18 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">委託人：</label>
-                        <input type="text" x-model="pdfForm.client" placeholder="請輸入委託人..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                        <input type="text" x-model="pdfForm.client" @input.debounce.400ms="savePdfMeta()" placeholder="請輸入委託人..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">建案：</label>
-                        <input type="text" x-model="pdfForm.projectName" placeholder="請輸入建案..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                        <input type="text" x-model="pdfForm.projectName" @input.debounce.400ms="savePdfMeta()" placeholder="請輸入建案..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">標的物地址：</label>
-                    <input type="text" x-model="pdfForm.address" placeholder="請輸入標的物地址..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500">
+                    <input type="text" x-model="pdfForm.address" @input.debounce.400ms="savePdfMeta()" placeholder="請輸入標的物地址..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-rose-500 placeholder:text-slate-400">
+                    <p class="text-[10px] text-slate-400 mt-1">委託人、建案、地址會依專案自動記住，下次不用重打。</p>
                 </div>
 
                 <div>
@@ -2599,32 +2568,77 @@
                 </div>
 
                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                    <div class="flex justify-between items-center">
-                        <label class="text-xs font-semibold text-slate-700 flex items-center space-x-1.5">
-                            <i class="fa-solid fa-up-right-and-down-left-from-center text-rose-600"></i>
-                            <span>PDF 縮放比例調整：</span>
+                    <label class="text-xs font-semibold text-slate-700 flex items-center space-x-1.5">
+                        <i class="fa-solid fa-filter text-rose-600"></i>
+                        <span>匯出範圍：</span>
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <label class="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs" :class="pdfForm.scope === 'all' ? 'border-rose-400 bg-rose-50 text-rose-700 font-semibold' : 'border-slate-200 bg-white text-slate-600'">
+                            <input type="radio" value="all" x-model="pdfForm.scope" :disabled="pdfExportBusy" class="accent-rose-600">
+                            <span x-text="'全部缺失（' + (items || []).length + ' 筆）'"></span>
                         </label>
-                        <span class="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" x-text="pdfForm.scale + '%'"></span>
+                        <label class="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs" :class="pdfForm.scope === 'unit' ? 'border-rose-400 bg-rose-50 text-rose-700 font-semibold' : 'border-slate-200 bg-white text-slate-600'">
+                            <input type="radio" value="unit" x-model="pdfForm.scope" :disabled="pdfExportBusy" class="accent-rose-600">
+                            <span>指定戶別</span>
+                        </label>
+                        <label class="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs" :class="pdfForm.scope === 'filtered' ? 'border-rose-400 bg-rose-50 text-rose-700 font-semibold' : 'border-slate-200 bg-white text-slate-600'">
+                            <input type="radio" value="filtered" x-model="pdfForm.scope" :disabled="pdfExportBusy" class="accent-rose-600">
+                            <span x-text="'依目前篩選（' + filteredItems.length + ' 筆）'"></span>
+                        </label>
                     </div>
-                    <div class="flex items-center space-x-3">
-                        <span class="text-[11px] text-slate-400 font-medium">小 (50%)</span>
-                        <input type="range" min="50" max="150" step="5" x-model.number="pdfForm.scale" class="w-full accent-rose-600 cursor-pointer">
-                        <span class="text-[11px] text-slate-400 font-medium">大 (150%)</span>
-                        <button type="button" @click="pdfForm.scale = 100" class="px-2 py-1 text-[11px] bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded transition font-medium shrink-0">重設 100%</button>
+                    <div x-show="pdfForm.scope === 'unit'" class="flex items-center gap-2">
+                        <select x-model="pdfForm.unit" :disabled="pdfExportBusy" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm">
+                            <option value="">請選擇戶別...</option>
+                            <template x-for="u in pdfUnitOptions" :key="'pdf-unit-'+u">
+                                <option :value="u" x-text="u + '（' + (items || []).filter(i => i && i.unit === u).length + ' 筆）'" :selected="u === pdfForm.unit"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <p class="text-[10px] text-slate-400" x-show="pdfForm.scope === 'unit'">選擇戶別後，PDF 只會包含該戶的缺失，檔名也會加上戶別。</p>
+                    <p class="text-[10px] text-slate-400" x-show="pdfForm.scope === 'filtered' && !pdfFiltersActive">目前清單沒有設定任何篩選，輸出內容與「全部缺失」相同。</p>
+                    <p class="text-[10px] text-slate-400" x-show="pdfForm.scope === 'filtered' && pdfFiltersActive">會套用清單頁上的搜尋、戶別、空間、工種、狀態篩選。</p>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+                    <label class="text-xs font-semibold text-slate-700 flex items-center space-x-1.5">
+                        <i class="fa-solid fa-sliders text-rose-600"></i>
+                        <span>報告內容選項：</span>
+                    </label>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="text-slate-600 shrink-0">排序方式</span>
+                        <select x-model="pdfForm.sortMode" @change="savePdfOptions()" :disabled="pdfExportBusy" class="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg bg-white text-xs">
+                            <option value="unitSpace">依戶別，再依空間排序</option>
+                            <option value="created">依建立順序（原本順序）</option>
+                        </select>
+                    </div>
+                    <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                        <input type="checkbox" x-model="pdfForm.autoTick" @change="savePdfOptions()" :disabled="pdfExportBusy" class="accent-rose-600">
+                        <span>複檢欄位依目前修繕狀態自動打勾</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                        <input type="checkbox" x-model="pdfForm.showCompleteDate" @change="savePdfOptions()" :disabled="pdfExportBusy" class="accent-rose-600">
+                        <span>放入修繕完成日期（只有已填完成日期的缺失會顯示）</span>
+                    </label>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="pdfForm.showReportDate" @change="savePdfOptions()" :disabled="pdfExportBusy" class="accent-rose-600">
+                            <span>放入出報告日期</span>
+                        </label>
+                        <input type="date" x-show="pdfForm.showReportDate" x-model="pdfForm.reportDate" :disabled="pdfExportBusy" class="px-2 py-1 border border-slate-300 rounded-lg bg-white text-xs">
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                        <span><i class="fa-solid fa-eye text-blue-600 mr-1"></i>PDF 實時預覽縮圖：</span>
-                        <span class="text-[11px] text-slate-400 font-normal">（縮圖即時反應目前頁面內容與比例設定）</span>
+                        <span><i class="fa-solid fa-eye text-blue-600 mr-1"></i>PDF 預覽縮圖（第 1 頁）：</span>
                     </label>
                     <div class="w-full h-52 border border-slate-300 rounded-xl bg-slate-200 overflow-auto relative flex justify-center p-3 pdf-preview-scroll shadow-inner">
                         <div class="bg-white shadow-lg rounded-sm origin-top transition-all duration-200 p-4 border border-slate-300 select-none shrink-0"
-                             :style="'transform: scale(' + ((pdfForm.scale / 100) * 0.42) + '); transform-origin: top center; width: 790px; min-height: 950px; mb-[-550px]'">
+                             style="transform: scale(0.42); transform-origin: top center; width: 790px; min-height: 950px;">
                             
                             <div class="text-center pb-2 mb-3 border-b-2 border-slate-800">
                                 <h1 class="text-xl font-bold text-slate-900" x-text="'【' + (pdfForm.title || currentProjectName || '國泰央北建案 B1 區') + '】缺失報告說明書'"></h1>
+                                <div class="text-xs text-slate-500 mt-1" x-show="pdfForm.showReportDate && pdfForm.reportDate" x-text="'出報告日期：' + formatPdfDate(pdfForm.reportDate)"></div>
                             </div>
                             <table class="w-full border-collapse border border-slate-300 text-xs mb-3">
                                 <tr>
@@ -2642,10 +2656,10 @@
                             </table>
                             
                             <div class="bg-slate-800 text-white font-bold px-3 py-1.5 rounded text-xs mb-3">
-                                標的屋檢驗相片及說明
+                                標的物檢驗相片及說明書
                             </div>
 
-                            <template x-for="(item, idx) in filteredItems.slice(0, 2)" :key="item.id">
+                            <template x-for="(item, idx) in pdfExportItems.slice(0, 2)" :key="item.id">
                                 <div class="border border-slate-400 rounded mb-3 p-3 bg-white">
                                     <div class="flex justify-between items-center border-b border-slate-200 pb-1 mb-2 text-xs">
                                         <span class="font-bold text-blue-700" x-text="(item.unit || '') + ' ' + (item.space || '') + ' - ' + item.name"></span>
@@ -2669,9 +2683,9 @@
                                 </div>
                             </template>
 
-                            <template x-if="filteredItems.length > 2">
+                            <template x-if="pdfExportItems.length > 2">
                                 <div class="text-center text-xs text-slate-400 italic mt-2 bg-slate-50 py-1.5 border border-dashed border-slate-300 rounded">
-                                    ...共計 <span class="font-bold" x-text="filteredItems.length"></span> 筆缺失項目將完整輸出至 PDF 檔案
+                                    ...共計 <span class="font-bold" x-text="pdfExportItems.length"></span> 筆缺失項目將完整輸出至 PDF 檔案
                                 </div>
                             </template>
                         </div>
@@ -2680,61 +2694,18 @@
 
             </div>
 
-            <!-- PDF 匯出進度：只在真正開始匯出後顯示 -->
-            <template x-if="pdfExportBusy || pdfExportProgress >= 100">
-                <div class="pdf-export-progress-card space-y-3">
-                    <div class="flex items-center justify-between gap-3">
-                        <div class="min-w-0">
-                            <div class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <span x-show="pdfExportBusy" class="pdf-export-spinner"></span>
-                                <i x-show="!pdfExportBusy && pdfExportProgress >= 100" class="fa-solid fa-circle-check text-emerald-600"></i>
-                                <span x-text="pdfExportStageLabel || '準備匯出…'"></span>
-                            </div>
-                            <div class="text-[11px] text-slate-500 mt-1 leading-relaxed" x-text="pdfExportMessage || '正在準備…'"></div>
-                        </div>
-                        <div class="text-xl font-extrabold text-rose-600 shrink-0" x-text="pdfExportProgress + '%'" x-show="pdfExportStage !== 4"></div>
-                        <div class="text-xs font-bold text-rose-600 shrink-0 flex items-center gap-1.5" x-show="pdfExportStage === 4"><span class="pdf-export-spinner"></span><span>處理中</span></div>
-                    </div>
-
-                    <div class="pdf-export-progress-track">
-                        <div class="pdf-export-progress-fill" :class="pdfExportStage === 4 ? 'pdf-export-progress-indeterminate' : ''" :style="`width:${pdfExportProgress}%`"></div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 text-center bg-slate-50 rounded-xl p-2 border border-slate-100">
-                        <div>
-                            <div class="text-[10px] text-slate-400">目前缺失</div>
-                            <div class="text-sm font-bold text-slate-700"><span x-text="pdfExportCurrentItem"></span> / <span x-text="pdfExportTotalItems"></span></div>
-                        </div>
-                        <div>
-                            <div class="text-[10px] text-slate-400">目前頁數</div>
-                            <div class="text-sm font-bold text-slate-700"><span x-text="pdfExportCurrentPage"></span> / <span x-text="pdfExportTotalPages"></span></div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between gap-2 pt-1">
-                        <template x-for="(stageName, stageIdx) in ['整理資料','讀取照片','組合版面','製作 PDF','完成']" :key="'pdf-stage-'+stageIdx">
-                            <div class="pdf-export-stage flex-1" :class="{'is-active': pdfExportStage === stageIdx + 1, 'is-done': pdfExportStage > stageIdx + 1}">
-                                <div class="pdf-export-stage-dot">
-                                    <i x-show="pdfExportStage > stageIdx + 1" class="fa-solid fa-check"></i>
-                                    <span x-show="pdfExportStage <= stageIdx + 1" x-text="stageIdx + 1"></span>
-                                </div>
-                                <div class="pdf-export-stage-text hidden sm:block" x-text="stageName"></div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <div x-show="pdfExportStage === 4" class="text-[10px] text-slate-400 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 leading-relaxed">
-                        <i class="fa-solid fa-circle-info mr-1"></i>現在不是卡住；這一步是瀏覽器正在把頁面轉成 PDF。PDF 引擎沒有提供可靠的逐頁百分比，因此會以「處理中」動畫表示。
-                    </div>
+            <div class="pt-2 border-t border-slate-100 space-y-2">
+                <div x-show="pdfPrintMessage" class="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info"></i><span x-text="pdfPrintMessage"></span>
                 </div>
-            </template>
-
-            <div class="flex space-x-3 pt-2 border-t border-slate-100">
-                <button @click="if (!pdfExportBusy) showPdfExportModalFlag = false" :disabled="pdfExportBusy" :class="pdfExportBusy ? 'opacity-40 cursor-not-allowed' : ''" class="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 font-medium hover:bg-slate-50">取消</button>
-                <button @click="exportToPdf()" :disabled="pdfExportBusy" :class="pdfExportBusy ? 'opacity-60 cursor-not-allowed' : ''" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm flex items-center justify-center space-x-1.5">
-                    <i class="fa-solid" :class="pdfExportBusy ? 'fa-spinner fa-spin' : 'fa-download'"></i>
-                    <span x-text="pdfExportBusy ? 'PDF 產生中…' : '產生並下載 PDF'"></span>
-                </button>
+                <div class="flex flex-wrap gap-2">
+                    <button @click="if (!pdfExportBusy && !pdfPrintBusy) showPdfExportModalFlag = false" :disabled="pdfExportBusy || pdfPrintBusy" :class="(pdfExportBusy || pdfPrintBusy) ? 'opacity-40 cursor-not-allowed' : ''" class="px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 font-medium hover:bg-slate-50">取消</button>
+                    <button @click="printPdfReport()" :disabled="pdfExportBusy || pdfPrintBusy" :class="(pdfExportBusy || pdfPrintBusy) ? 'opacity-60 cursor-not-allowed' : ''" class="flex-1 min-w-[150px] py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm flex items-center justify-center space-x-1.5" title="用瀏覽器列印功能另存 PDF">
+                        <i class="fa-solid" :class="pdfPrintBusy ? 'fa-spinner fa-spin' : 'fa-print'"></i>
+                        <span x-text="pdfPrintBusy ? '準備中…' : '列印/另存PDF'"></span>
+                    </button>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-relaxed">按下後會開啟列印視窗，「目的地」請選「另存為 PDF」再按儲存。</p>
             </div>
         </div>
     </div>
@@ -2873,87 +2844,6 @@
                     <span x-text="pdfImportBusy ? '處理中…' : '確認匯入 ' + pdfImportRecords.filter(r => r.selected).length + ' 筆'"></span>
                 </button>
             </div>
-        </div>
-    </div>
-
-    <!-- 📄 PDF 報告公版隱藏渲染模板：A4 固定分頁，第一頁 2 筆、後續每頁 3 筆 -->
-    <div style="position: absolute; left: -9999px; top: -9999px;">
-        <div id="pdf-export-template" style="width: 790px; background: #ffffff; font-family: 'Noto Sans TC', sans-serif; color: #1e293b; box-sizing: border-box;">
-            <template x-for="(pageItems, pageIndex) in pdfPageGroups" :key="'pdf-page-' + pageIndex">
-                <div :style="'width:790px;height:1075px;padding:24px;background:#ffffff;box-sizing:border-box;overflow:hidden;page-break-after:' + (pageIndex === (pdfPageGroups.length - 1) ? 'auto' : 'always') + ';break-after:' + (pageIndex === (pdfPageGroups.length - 1) ? 'auto' : 'page') + ';'">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px; padding-bottom:7px; border-bottom:2px solid #0f172a;">
-                        <h1 style="font-size:22px; font-weight:bold; color:#0f172a; margin:0;" x-text="'【' + (pdfForm.title || '國泰央北建案 B1 區') + '】缺失報告說明書'"></h1>
-                        <span style="font-size:11px; color:#64748b;" x-text="'第 ' + (pageIndex + 1) + ' 頁'"></span>
-                    </div>
-
-                    <template x-if="pageIndex === 0">
-                        <div>
-                            <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:13px; border:1px solid #cbd5e1;">
-                                <tr>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; width:15%; color:#334155;">委託人</td>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1; width:35%;" x-text="pdfForm.client || '【】'"></td>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; width:15%; color:#334155;">建案</td>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1; width:35%;" x-text="pdfForm.projectName || '【】'"></td>
-                                </tr>
-                                <tr>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; color:#334155;">標的物地址</td>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1;" x-text="pdfForm.address || '【】'"></td>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:bold; color:#334155;">備註</td>
-                                    <td style="padding:8px 12px; border:1px solid #cbd5e1;" x-text="pdfForm.remark || '【】'"></td>
-                                </tr>
-                            </table>
-                        </div>
-                    </template>
-
-                    <div style="font-size:15px; font-weight:bold; padding:7px 12px; background:#1e293b; color:#fff; margin-bottom:10px; border-radius:4px;">
-                        標的屋檢驗相片及說明
-                    </div>
-
-                    <template x-for="item in pageItems" :key="item.id">
-                        <div style="height:310px; border:1.5px solid #475569; margin-bottom:8px; page-break-inside:avoid; break-inside:avoid; border-radius:6px; overflow:hidden; background:#fff; box-sizing:border-box;">
-                            <table style="width:100%; border-collapse:collapse; font-size:12px;">
-                                <tr style="background:#f1f5f9; border-bottom:1px solid #cbd5e1;">
-                                    <td style="padding:6px 10px; width:15%; font-weight:bold; border-right:1px solid #cbd5e1; color:#334155;">類別</td>
-                                    <td style="padding:6px 10px; width:35%; border-right:1px solid #cbd5e1; font-weight:500;" x-text="categoryDisplay(item.category)"></td>
-                                    <td style="padding:6px 10px; width:15%; font-weight:bold; border-right:1px solid #cbd5e1; color:#334155;">檢測區域</td>
-                                    <td style="padding:6px 10px; width:35%; font-weight:bold; color:#2563eb;" x-text="(item.unit || '') + ' ' + (item.space || '')"></td>
-                                </tr>
-                                <tr style="border-bottom:1px solid #cbd5e1;">
-                                    <td style="padding:6px 10px; font-weight:bold; border-right:1px solid #cbd5e1; background:#f8fafc; color:#334155;">缺失說明</td>
-                                    <td style="padding:6px 10px;" colspan="3" x-text="item.name + (item.remark ? '（' + item.remark + '）' : '')"></td>
-                                </tr>
-                            </table>
-
-                            <div style="padding:5px 8px; border-bottom:1px solid #cbd5e1; background:#fafafa;">
-                                <div style="display:flex; gap:7px; justify-content:center; align-items:center;">
-                                    <template x-for="pType in pdfForm.photoTypes" :key="pType">
-                                        <div style="flex:1; text-align:center; max-width:50%;">
-                                            <div style="font-size:10px; font-weight:bold; color:#475569; margin-bottom:3px;" x-text="pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')"></div>
-                                            <div style="width:100%; height:154px; border:1px solid #e2e8f0; background:#f1f5f9; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:4px;">
-                                                <template x-if="getPhotosByType(item, pType).length > 0">
-                                                    <img :src="getPhotoUrl(getPhotosByType(item, pType)[0])" :data-export-photo-path="getPhotosByType(item, pType)[0] || ''" crossorigin="anonymous" style="max-width:100%; max-height:100%; object-fit:contain;">
-                                                </template>
-                                                <template x-if="getPhotosByType(item, pType).length === 0">
-                                                    <span style="font-size:10px; color:#94a3b8;">（尚無相片）</span>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-
-                            <div style="padding:4px 9px; background:#fff; display:flex; justify-content:space-between; align-items:center; font-size:10px; line-height:1.2;">
-                                <span style="font-weight:bold; color:#1e293b; white-space:nowrap;">複檢欄位區域：</span>
-                                <div style="display:flex; gap:12px; font-size:10px;">
-                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '待修繕'" style="width:11px;height:11px;"><span :style="item.repairStatus === '待修繕' ? 'color:#d97706;font-weight:bold;' : 'color:#64748b;'">待修繕</span></label>
-                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '修繕中'" style="width:11px;height:11px;"><span :style="item.repairStatus === '修繕中' ? 'color:#2563eb;font-weight:bold;' : 'color:#64748b;'">修繕中</span></label>
-                                    <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" :checked="item.repairStatus === '已完成'" style="width:11px;height:11px;"><span :style="item.repairStatus === '已完成' ? 'color:#059669;font-weight:bold;' : 'color:#64748b;'">修繕完成</span></label>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </template>
         </div>
     </div>
 
@@ -3192,9 +3082,9 @@
 
     <!-- 新增驗屋缺失項目浮動視窗 -->
     <div x-show="showNewItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
-        <div class="mobile-edit-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+        <div class="mobile-edit-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-[720px] overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-base font-bold text-slate-800 flex items-center space-x-2">
                     <i class="fa-solid fa-plus text-blue-600"></i>
                     <span>新增驗屋缺失項目</span>
                 </h2>
@@ -3202,28 +3092,48 @@
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            
-            <div class="flex-1 overflow-y-auto p-6 space-y-5">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div class="md:col-span-2 space-y-1.5">
+
+            <div class="flex-1 overflow-y-auto px-5 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                    <div class="md:col-span-2 lg:col-span-3 space-y-1">
                         <label class="block text-sm font-semibold text-slate-700">項目名稱 <span class="text-red-500">*</span></label>
                         <input type="text" x-model="newItemForm.name" placeholder="例如：牆面漆面不平整..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block text-sm font-semibold text-slate-700">空間位置</label>
                         <div class="flex items-center space-x-2">
-                            <select x-model="newItemForm.space" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                                <template x-for="s in spaceList" :key="s"><option :value="s" x-text="s"></option></template>
+                            <select x-model="newItemForm.space" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="s in newItemOptionList('space')" :key="s"><option :value="s" x-text="s" :selected="s === newItemForm.space"></option></template>
                             </select>
                             <button @click="openOptionEdit('space')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
                         </div>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
+                        <label class="block text-sm font-semibold text-slate-700">驗收方法</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.method" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="m in newItemOptionList('method')" :key="m"><option :value="m" x-text="m" :selected="m === newItemForm.method"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('method')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="block text-sm font-semibold text-slate-700">戶別</label>
+                        <div class="flex items-center space-x-2">
+                            <select x-model="newItemForm.unit" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                                <template x-for="u in newItemOptionList('unit')" :key="u"><option :value="u" x-text="u" :selected="u === newItemForm.unit"></option></template>
+                            </select>
+                            <button @click="openOptionEdit('unit')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2 space-y-1">
                         <label class="block text-sm font-semibold text-slate-700">工種/類別（可複選）</label>
                         <div class="flex items-center space-x-2">
-                            <div class="category-multi-select flex-1" @click.outside="newItemCategoryMenuOpen = false">
+                            <div class="category-multi-select flex-1 min-w-0" @pointerdown.outside="newItemCategoryMenuOpen = false" @keydown.escape="newItemCategoryMenuOpen = false">
                                 <button type="button" class="category-multi-select-summary" @click="newItemCategoryMenuOpen = !newItemCategoryMenuOpen">
                                     <template x-if="newItemCategorySelection.length">
                                         <div class="category-multi-select-tags">
@@ -3234,7 +3144,7 @@
                                     <i class="fa-solid fa-chevron-down chevron"></i>
                                 </button>
                                 <div x-show="newItemCategoryMenuOpen" x-cloak class="category-multi-select-menu" @click.stop>
-                                    <template x-for="c in categoryList" :key="'new-cat-'+c">
+                                    <template x-for="c in newItemOptionList('category')" :key="'new-cat-'+c">
                                         <label class="category-multi-select-option cursor-pointer">
                                             <input type="checkbox" :value="c" x-model="newItemCategorySelection" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                                             <span x-text="c"></span>
@@ -3246,50 +3156,28 @@
                         </div>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <label class="block text-sm font-semibold text-slate-700">驗收方法</label>
-                        <div class="flex items-center space-x-2">
-                            <select x-model="newItemForm.method" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                                <template x-for="m in methodList" :key="m"><option :value="m" x-text="m"></option></template>
-                            </select>
-                            <button @click="openOptionEdit('method')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="block text-sm font-semibold text-slate-700">戶別</label>
-                        <div class="flex items-center space-x-2">
-                            <select x-model="newItemForm.unit" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
-                                <template x-for="u in unitList" :key="u"><option :value="u" x-text="u"></option></template>
-                            </select>
-                            <button @click="openOptionEdit('unit')" class="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition shrink-0" title="編輯選項"><i class="fa-solid fa-pen text-xs"></i></button>
-                        </div>
-                    </div>
-
-                    <div class="md:col-span-2 text-[10px] text-slate-400 flex items-center gap-1 -mt-2">
-                        <i class="fa-solid fa-cloud text-blue-400"></i>
-                        <span x-text="optionSettingsStatusLabel()"></span>
-                    </div>
-
-                    <div class="md:col-span-2 space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block text-sm font-semibold text-slate-700">預計修繕截止日期</label>
                         <input type="date" x-model="newItemForm.dueDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
                     </div>
 
-                    <div class="md:col-span-2 space-y-1.5">
+                    <div class="md:col-span-2 lg:col-span-3 space-y-1">
                         <label class="block text-sm font-semibold text-slate-700">備註說明</label>
                         <textarea x-model="newItemForm.remark" maxlength="50" @input="newItemForm.remark = String(newItemForm.remark || '').slice(0, 50)" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="輸入其他備註事項...（最多50字）"></textarea>
-                        <div class="text-[10px] text-slate-400 text-right"><span x-text="String(newItemForm.remark || '').length"></span>/50</div>
+                        <div class="flex justify-between text-[10px] text-slate-400">
+                            <span class="flex items-center gap-1"><i class="fa-solid fa-cloud text-blue-400"></i><span x-text="optionSettingsStatusLabel()"></span></span>
+                            <span><span x-text="String(newItemForm.remark || '').length"></span>/50</span>
+                        </div>
                     </div>
 
-                    <div class="md:col-span-2 space-y-2 pt-2 border-t border-slate-100">
+                    <div class="md:col-span-2 lg:col-span-3 space-y-2 pt-2 border-t border-slate-100">
                         <label class="block text-sm font-semibold text-slate-700">上傳缺失照片</label>
-                        <div class="new-item-photo-dropzone border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50 transition hover:bg-slate-100"
+                        <div class="new-item-photo-dropzone border-2 border-dashed border-slate-300 rounded-xl p-3 flex flex-col items-center justify-center text-center bg-slate-50 transition hover:bg-slate-100"
                              tabindex="0"
                              @dragover.prevent @drop.prevent="handleNewItemDrop($event)"
                              @paste.prevent.stop="handleNewItemPaste($event)">
-                             
-                            <div class="flex space-x-3 mb-3">
+
+                            <div class="flex space-x-3 mb-2">
                                 <label class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 cursor-pointer transition text-xs font-semibold shadow-sm flex items-center space-x-1.5">
                                     <i class="fa-solid fa-camera"></i><span>即時拍照</span>
                                     <input type="file" accept="image/*" capture="environment" class="hidden" @change="uploadNewItemPhotos($event)">
@@ -3303,9 +3191,9 @@
                         </div>
                         
                         <template x-if="newItemForm.defectPhotos.length > 0">
-                            <div class="flex flex-wrap gap-3 mt-3">
+                            <div class="flex flex-wrap gap-2 mt-2">
                                 <template x-for="(pUrl, pIdx) in newItemForm.defectPhotos" :key="pIdx">
-                                    <div class="new-item-photo-thumb relative w-28 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-100">
+                                    <div class="new-item-photo-thumb relative w-24 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm group bg-slate-100">
                                         <img :src="getThumbUrl(pUrl)" @error="onThumbError(pUrl, $event)" class="w-full h-full object-cover">
                                         <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer" @click="removeNewItemPhoto(pIdx)">
                                             <i class="fa-solid fa-trash text-white text-xs"></i>
@@ -3318,18 +3206,18 @@
                 </div>
             </div>
 
-            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
-                <button @click="showNewItemModalFlag = false" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
-                <button @click="saveNewItem()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存並建立</button>
+            <div class="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button @click="showNewItemModalFlag = false" class="px-5 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
+                <button @click="saveNewItem()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存並建立</button>
             </div>
         </div>
     </div>
 
     <!-- 編輯項目 Modal -->
     <div x-show="showEditItemModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style="display: none;">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h2 class="text-lg font-bold text-slate-800 flex items-center space-x-2">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[720px] overflow-hidden flex flex-col max-h-[90vh]" @click.stop>
+            <div class="px-5 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 class="text-base font-bold text-slate-800 flex items-center space-x-2">
                     <i class="fa-solid fa-pen-to-square text-blue-600"></i>
                     <span>編輯驗屋缺失項目內容</span>
                 </h2>
@@ -3337,28 +3225,48 @@
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            
-            <div class="flex-1 overflow-y-auto p-6 space-y-5">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
-                    <div class="md:col-span-2 space-y-1.5">
+
+            <div class="flex-1 overflow-y-auto px-5 py-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 text-sm">
+                    <div class="md:col-span-2 lg:col-span-3 space-y-1">
                         <label class="block font-semibold text-slate-700">項目名稱 <span class="text-red-500">*</span></label>
                         <input type="text" x-model="editItemForm.name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block font-semibold text-slate-700">空間位置</label>
                         <div class="flex items-center gap-2">
-                            <select :value="editItemForm.space || ''" @change="editItemForm.space = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                                <template x-for="s in editSpaceOptions" :key="'edit-s-'+s"><option :value="s" x-text="s"></option></template>
+                            <select :value="editItemForm.space || ''" @change="editItemForm.space = $event.target.value" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="s in editSpaceOptions" :key="'edit-s-'+s"><option :value="s" x-text="s" :selected="s === editItemForm.space"></option></template>
                             </select>
                             <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('space')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯空間選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
                         </div>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
+                        <label class="block font-semibold text-slate-700">驗收方法</label>
+                        <div class="flex items-center gap-2">
+                            <select :value="editItemForm.method || ''" @change="editItemForm.method = $event.target.value" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="m in editMethodOptions" :key="'edit-m-'+m"><option :value="m" x-text="m" :selected="m === editItemForm.method"></option></template>
+                            </select>
+                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('method')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯驗收方法選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="block font-semibold text-slate-700">戶別</label>
+                        <div class="flex items-center gap-2">
+                            <select :value="editItemForm.unit || ''" @change="editItemForm.unit = $event.target.value" class="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                                <template x-for="u in editUnitOptions" :key="'edit-u-'+u"><option :value="u" x-text="u" :selected="u === editItemForm.unit"></option></template>
+                            </select>
+                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('unit')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯戶別選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2 space-y-1">
                         <label class="block font-semibold text-slate-700">工種/類別（可複選）</label>
                         <div class="flex items-center gap-2">
-                            <div class="category-multi-select flex-1" @click.outside="editItemCategoryMenuOpen = false">
+                            <div class="category-multi-select flex-1 min-w-0" @pointerdown.outside="editItemCategoryMenuOpen = false" @keydown.escape="editItemCategoryMenuOpen = false">
                                 <button type="button" class="category-multi-select-summary" @click="editItemCategoryMenuOpen = !editItemCategoryMenuOpen">
                                     <template x-if="editItemCategorySelection.length">
                                         <div class="category-multi-select-tags">
@@ -3381,27 +3289,7 @@
                         </div>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <label class="block font-semibold text-slate-700">驗收方法</label>
-                        <div class="flex items-center gap-2">
-                            <select :value="editItemForm.method || ''" @change="editItemForm.method = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                                <template x-for="m in editMethodOptions" :key="'edit-m-'+m"><option :value="m" x-text="m"></option></template>
-                            </select>
-                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('method')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯驗收方法選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="block font-semibold text-slate-700">戶別</label>
-                        <div class="flex items-center gap-2">
-                            <select :value="editItemForm.unit || ''" @change="editItemForm.unit = $event.target.value" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg bg-white">
-                                <template x-for="u in editUnitOptions" :key="'edit-u-'+u"><option :value="u" x-text="u"></option></template>
-                            </select>
-                            <template x-if="authRole === 'Owner'"><button type="button" @click="openOptionEdit('unit')" class="w-9 h-9 shrink-0 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="編輯戶別選項"><i class="fa-solid fa-pen text-xs"></i></button></template>
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block font-semibold text-slate-700">修繕狀態</label>
                         <select x-model="editItemForm.repairStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <option value="待修繕">待修繕</option>
@@ -3410,7 +3298,7 @@
                         </select>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block font-semibold text-slate-700">工檢狀態</label>
                         <select x-model="editItemForm.inspectionStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
                             <option value="待複查">待複查</option>
@@ -3418,17 +3306,17 @@
                         </select>
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block font-semibold text-slate-700">預計修繕截止日期</label>
                         <input type="date" x-model="editItemForm.dueDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
                     </div>
 
-                    <div class="space-y-1.5">
+                    <div class="space-y-1">
                         <label class="block font-semibold text-slate-700">完成日期</label>
                         <input type="date" x-model="editItemForm.completeDate" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
                     </div>
 
-                    <div class="md:col-span-2 space-y-1.5">
+                    <div class="md:col-span-2 lg:col-span-3 space-y-1">
                         <label class="block font-semibold text-slate-700">備註說明</label>
                         <textarea x-model="editItemForm.remark" maxlength="50" @input="editItemForm.remark = String(editItemForm.remark || '').slice(0, 50)" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></textarea>
                         <div class="text-[10px] text-slate-400 text-right"><span x-text="String(editItemForm.remark || '').length"></span>/50</div>
@@ -3436,9 +3324,9 @@
                 </div>
             </div>
 
-            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
-                <button @click="showEditItemModalFlag = false" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
-                <button @click="saveEditItem()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存變更</button>
+            <div class="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button @click="showEditItemModalFlag = false" class="px-5 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition">取消</button>
+                <button @click="saveEditItem()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow-sm transition">儲存變更</button>
             </div>
         </div>
     </div>
@@ -3453,18 +3341,20 @@
                 </div>
                 <button @click="showOptionEditModalFlag = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="space-y-3 max-h-60 overflow-y-auto">
+            <button @click="addOptionItem()" class="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
+                <i class="fa-solid fa-plus"></i><span>新增一項（加在第一格）</span>
+            </button>
+            <div x-ref="optionEditListBox" class="space-y-2 max-h-60 overflow-y-auto pr-1">
                 <template x-for="(opt, idx) in tempOptionList" :key="idx">
                     <div class="flex items-center space-x-2">
-                        <input type="text" x-model="tempOptionList[idx]" maxlength="18" class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                        <input type="text" x-model="tempOptionList[idx]" maxlength="18" placeholder="輸入新選項名稱"
+                               :class="idx < optionEditAddedCount ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/40' : 'border-slate-300'"
+                               class="flex-1 px-3 py-1.5 border rounded-lg text-sm">
                         <button @click="removeOptionItem(idx)" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 flex items-center justify-center"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
                 </template>
             </div>
-            <p class="text-[10px] text-slate-400">每個選項最多 18 個字元。</p>
-            <button @click="addOptionItem()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1">
-                <i class="fa-solid fa-plus"></i><span>新增一項</span>
-            </button>
+            <p class="text-[10px] text-slate-400">每個選項最多 18 個字元。儲存後，新增的選項會自動帶入目前的表單。</p>
             <div class="flex space-x-3 pt-2">
                 <button @click="showOptionEditModalFlag = false" class="flex-1 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-700">取消</button>
                 <button @click="saveOptionEdit()" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold">儲存選項</button>
@@ -3639,8 +3529,21 @@
                     { id: '2', code: 'A301-02', name: '客廳地磚空鼓現象', space: '客廳', category: '泥作工種', method: '敲擊聽音', unit: 'A3-01', repairStatus: '修繕中', inspectionStatus: '待複查', dueDate: '2026-10-20', completeDate: '', inspector: '驗屋專員', remark: '中央第三塊地磚角落敲擊聲異常', defectPhotos: [], repairPhotos: [], inspectionPhotos: [] }
                 ],
 
+                // 桌面版篩選列折疊狀態
+                desktopSearchOpen: false,
+                desktopFiltersOpen: (() => { try { return localStorage.getItem('hongyuan_desktop_filters_open') === '1'; } catch (e) { return false; } })(),
+
+                // 照片備份 ZIP
+                showBackupModal: false,
+                backupBusy: false,
+                backupProgress: 0,
+                backupMessage: '',
+                backupForm: { projectId: '', folderName: '', photoTypes: ['defect', 'repair', 'inspection'] },
+
                 // PDF Form
                 showPdfExportModalFlag: false,
+                pdfPrintBusy: false,
+                pdfPrintMessage: '',
                 // PDF 匯出進度：用「階段 + 項目/頁數」呈現，避免卡在某個百分比看不出是否仍在工作。
                 pdfExportBusy: false,
                 pdfExportProgress: 0,
@@ -3659,7 +3562,13 @@
                     address: '',
                     remark: '',
                     photoTypes: ['defect', 'repair'],
-                    scale: 100
+                    scope: 'all',
+                    unit: '',
+                    sortMode: 'unitSpace',
+                    autoTick: true,
+                    showCompleteDate: false,
+                    showReportDate: false,
+                    reportDate: ''
                 },
 
                 // PDF 智慧匯入
@@ -3716,6 +3625,9 @@
                     { key: 'action', label: '操作', width: '90px', align: 'center' }
                 ],
                 draggedColIndex: null,
+                hiddenColumnKeys: [],
+                lockedColumnKeys: ['code', 'name'],
+                showColumnSettings: false,
 
                 // 選項選單
                 spaceList: ['玄關', '客廳', '主臥', '次臥', '廚房', '陽台', '主衛浴', '客衛浴'],
@@ -3755,6 +3667,7 @@
                 showOptionEditModalFlag: false,
                 optionEditTargetKey: '',
                 optionEditTitle: '',
+                optionEditAddedCount: 0,
                 optionEditBaseUpdatedAt: '',
                 tempOptionList: [],
 
@@ -3796,6 +3709,7 @@
                 },
 
                 init() {
+                    try { this.loadTableColumnSettings(); } catch (e) { console.warn('欄位設定載入失敗', e); }
                     this.cloudDataReady = false;
                     this.cloudDataLoading = false;
                     this.cloudDataError = '';
@@ -4466,6 +4380,8 @@
                     }
                     if (this.supabaseClient && !this.isGuestMode) await this.supabaseClient.auth.signOut();
                     this.clearPersistedPhotoCache();
+                    // 欄位設定（顯示／隱藏、鎖定、順序）只在登入期間有效，登出後恢復預設
+                    try { this.resetTableColumnSettings(); this.showColumnSettings = false; } catch (e) {}
                     this.isGuestMode = false;
                     this.isSiteAuthenticated = false;
                     this.cloudDataReady = false;
@@ -5818,16 +5734,59 @@
                     this.currentPage = 1;
                 },
 
+                // 桌面版篩選列：可整組折疊（記住上次狀態）
+                toggleDesktopFilters() {
+                    this.desktopFiltersOpen = !this.desktopFiltersOpen;
+                    try { localStorage.setItem('hongyuan_desktop_filters_open', this.desktopFiltersOpen ? '1' : '0'); } catch (e) {}
+                },
+
+                get activeFilterCount() {
+                    return [
+                        this.selectedSpaceFilter,
+                        (this.selectedCategoryFilters || []).length,
+                        this.selectedUnitFilter,
+                        this.filterStatus,
+                        this.filterInspectionStatus
+                    ].filter(Boolean).length;
+                },
+
+                clearAllFilters() {
+                    this.selectedSpaceFilter = '';
+                    this.selectedCategoryFilters = [];
+                    this.selectedUnitFilter = '';
+                    this.filterStatus = '';
+                    this.filterInspectionStatus = '';
+                    this.categoryFilterMenuOpen = false;
+                    this.currentPage = 1;
+                },
+
                 clearCategoryFilters() {
                     this.selectedCategoryFilters = [];
                     this.categoryFilterMenuOpen = false;
                     this.currentPage = 1;
                 },
 
+                // 畫面顯示用編號：依專案清單順序 1～N，刪除後自動補齊不跳號（不改動資料庫存的編號）
+                get itemSeqMap() {
+                    const items = this.items || [];
+                    const sig = items.length + '|' + (items[0]?.id || '') + '|' + (items[items.length - 1]?.id || '');
+                    const cache = window.__hyItemSeqCache; // 放在元件外，避免觸發畫面重繪
+                    if (cache && cache.ref === items && cache.sig === sig) return cache.map;
+                    const map = new Map();
+                    items.forEach((item, idx) => { if (item) map.set(item.id, idx + 1); });
+                    window.__hyItemSeqCache = { ref: items, sig, map };
+                    return map;
+                },
+
+                displayCode(item) {
+                    const n = item ? this.itemSeqMap.get(item.id) : null;
+                    return n ? String(n).padStart(2, '0') : '-';
+                },
+
                 get filteredItems() {
                     return this.items.filter(item => {
                         const q = this.searchQuery.toLowerCase();
-                        const matchQuery = !q || (item.name && item.name.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)) || (item.code && item.code.toLowerCase().includes(q));
+                        const matchQuery = !q || (item.name && item.name.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)) || (item.code && item.code.toLowerCase().includes(q)) || this.displayCode(item).includes(q);
                         const matchSpace = !this.selectedSpaceFilter || item.space === this.selectedSpaceFilter;
                         const matchCat = this.selectedCategoryFilters.length === 0
                             || this.selectedCategoryFilters.every(cat => this.hasCategory(item.category, cat));
@@ -5849,14 +5808,42 @@
                     return items.slice(start, start + this.pageSize);
                 },
 
-                // PDF 固定排版：第一頁 2 筆，第二頁起每頁 3 筆。
-                // 匯出不受畫面搜尋／篩選條件影響，一律輸出目前專案全部缺失。
-                get pdfPageGroups() {
-                    const items = Array.isArray(this.items) ? this.items.filter(Boolean) : [];
-                    if (!items.length) return [[]];
-                    const groups = [items.slice(0, 2)];
-                    for (let i = 2; i < items.length; i += 3) groups.push(items.slice(i, i + 3));
-                    return groups;
+                // PDF 匯出範圍：預設全部缺失；可改為依目前畫面的搜尋／篩選條件。預覽與輸出共用此清單。
+                get pdfExportItems() {
+                    let source = this.pdfForm.scope === 'filtered' ? this.filteredItems : this.items;
+                    source = Array.isArray(source) ? source.filter(Boolean) : [];
+                    if (this.pdfForm.scope === 'unit') {
+                        source = this.pdfForm.unit ? source.filter(i => i.unit === this.pdfForm.unit) : [];
+                    }
+                    if (this.pdfForm.sortMode === 'unitSpace') {
+                        // 戶別依自然排序（A3-2 在 A3-10 前）；空間依「空間位置」選項清單的順序，清單外的排最後
+                        const spaceOrder = new Map((this.spaceList || []).map((s, idx) => [s, idx]));
+                        const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'zh-Hant', { numeric: true });
+                        source = source
+                            .map((item, idx) => ({ item, idx }))
+                            .sort((x, y) => {
+                                const ua = x.item.unit || '', ub = y.item.unit || '';
+                                if (!ua !== !ub) return ua ? -1 : 1;
+                                const u = cmp(ua, ub);
+                                if (u) return u;
+                                const sa = spaceOrder.has(x.item.space) ? spaceOrder.get(x.item.space) : Infinity;
+                                const sb = spaceOrder.has(y.item.space) ? spaceOrder.get(y.item.space) : Infinity;
+                                if (sa !== sb) return sa - sb;
+                                const s = cmp(x.item.space, y.item.space);
+                                return s || (x.idx - y.idx);
+                            })
+                            .map(x => x.item);
+                    }
+                    return source;
+                },
+
+                get pdfUnitOptions() {
+                    const units = [...new Set((this.items || []).map(i => i && i.unit).filter(Boolean))];
+                    return units.sort((a, b) => a.localeCompare(b, 'zh-Hant', { numeric: true }));
+                },
+
+                get pdfFiltersActive() {
+                    return this.filteredItems.length !== (this.items || []).length;
                 },
 
                 get spaceOptions() { return [...new Set(this.items.map(i => i.space).filter(Boolean))]; },
@@ -6499,8 +6486,11 @@
 
                 openPdfExportModal() {
                     this.pdfForm.title = this.currentProjectName;
-                    this.pdfForm.projectName = this.currentProjectName;
-                    this.pdfForm.scale = 100;
+                    this.pdfForm.scope = 'all';
+                    this.loadPdfMeta();
+                    this.loadPdfOptions();
+                    if (this.pdfForm.unit && !this.pdfUnitOptions.includes(this.pdfForm.unit)) this.pdfForm.unit = '';
+                    this.pdfForm.reportDate = this.todayDateInputValue();
                     this.pdfExportBusy = false;
                     this.pdfExportProgress = 0;
                     this.pdfExportStage = 0;
@@ -6512,6 +6502,233 @@
                     this.pdfExportMessage = '';
                     this.pdfExportStartedAt = 0;
                     this.showPdfExportModalFlag = true;
+                },
+
+                // ===== 照片備份 ZIP（僅電腦版；純觀看者與訪客不可下載） =====
+                canDownloadBackup() {
+                    return !!this.authUser && !this.isGuestMode && this.authRole !== 'Viewer';
+                },
+
+                isDesktopDevice() {
+                    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+                    return window.innerWidth >= 1024 && !coarse;
+                },
+
+                backupDateStamp() {
+                    const d = new Date();
+                    return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+                },
+
+                openBackupModal() {
+                    if (!this.canDownloadBackup()) { alert('目前帳號沒有備份下載權限。'); return; }
+                    if (!this.isDesktopDevice()) { alert('備份下載僅提供電腦版使用。'); return; }
+                    this.backupForm.projectId = this.selectedProjectId;
+                    this.backupForm.folderName = (this.backupProjectName() || '專案') + '_備份_' + this.backupDateStamp();
+                    if (!this.backupForm.photoTypes.length) this.backupForm.photoTypes = ['defect', 'repair', 'inspection'];
+                    this.backupProgress = 0;
+                    this.backupMessage = '';
+                    this.showBackupModal = true;
+                },
+
+                onBackupProjectChange() {
+                    this.backupForm.folderName = (this.backupProjectName() || '專案') + '_備份_' + this.backupDateStamp();
+                },
+
+                backupProject() {
+                    return this.projects.find(p => p.id === this.backupForm.projectId) || null;
+                },
+
+                backupProjectName() {
+                    const p = this.backupProject();
+                    if (!p) return '';
+                    return p.id === this.selectedProjectId ? (this.currentProjectName || p.name) : p.name;
+                },
+
+                backupProjectItems() {
+                    const p = this.backupProject();
+                    if (!p) return [];
+                    // 目前開啟中的專案以畫面上最新資料為準
+                    return p.id === this.selectedProjectId ? (this.items || []) : (p.items || []);
+                },
+
+                backupPhotoCount(type) {
+                    return this.backupProjectItems().reduce((n, item) => n + this.getPhotosByType(item, type).filter(Boolean).length, 0);
+                },
+
+                backupTypeFolder(type) {
+                    return type === 'defect' ? '缺失照片' : (type === 'repair' ? '修繕照片' : '工檢照片');
+                },
+
+                sanitizeBackupName(name) {
+                    return String(name || '')
+                        .replace(/[\\/:*?"<>|\r\n\t]+/g, '_')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .replace(/^\.+|\.+$/g, '')
+                        .slice(0, 80);
+                },
+
+                async loadJsZip() {
+                    if (window.JSZip) return window.JSZip;
+                    await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                        s.onload = resolve;
+                        s.onerror = () => reject(new Error('JSZip 載入失敗，請確認網路連線。'));
+                        document.head.appendChild(s);
+                    });
+                    return window.JSZip;
+                },
+
+                backupExtFromBlob(blob, path) {
+                    const t = (blob && blob.type) || '';
+                    if (t.includes('png')) return 'png';
+                    if (t.includes('webp')) return 'webp';
+                    if (t.includes('gif')) return 'gif';
+                    if (t.includes('heic')) return 'heic';
+                    if (t.includes('jpeg') || t.includes('jpg')) return 'jpg';
+                    const m = String(path || '').split('?')[0].match(/\.([a-z0-9]{3,4})$/i);
+                    return m ? m[1].toLowerCase() : 'jpg';
+                },
+
+                async downloadBackupZip() {
+                    if (this.backupBusy) return;
+                    if (!this.canDownloadBackup()) { alert('目前帳號沒有備份下載權限。'); return; }
+                    if (!this.isDesktopDevice()) { alert('備份下載僅提供電腦版使用。'); return; }
+                    const rootName = this.sanitizeBackupName(this.backupForm.folderName);
+                    if (!rootName) { alert('請輸入下載資料夾名稱。'); return; }
+                    const projectName = this.sanitizeBackupName(this.backupProjectName()) || '專案';
+                    const items = this.backupProjectItems();
+
+                    // 整理要下載的照片清單與檔名
+                    const tasks = [];
+                    const usedNames = {};
+                    for (const type of ['defect', 'repair', 'inspection']) {
+                        if (!this.backupForm.photoTypes.includes(type)) continue;
+                        const folder = this.backupTypeFolder(type);
+                        for (const item of items) {
+                            const photos = this.getPhotosByType(item, type).filter(Boolean);
+                            if (!photos.length) continue;
+                            const base = this.sanitizeBackupName([item.unit, item.name].filter(x => String(x || '').trim()).join('_')) || ('缺失_' + (item.code || item.id));
+                            photos.forEach((path, idx) => {
+                                let name = photos.length > 1 ? `${base}_${idx + 1}` : base;
+                                const key = folder + '/' + name;
+                                if (usedNames[key]) { usedNames[key] += 1; name = `${name}(${usedNames[key]})`; }
+                                else usedNames[key] = 1;
+                                tasks.push({ path, folder, name, item, type });
+                            });
+                        }
+                    }
+                    if (!tasks.length) { alert('此專案沒有符合條件的照片可以下載。'); return; }
+
+                    this.backupBusy = true;
+                    this.backupProgress = 0;
+                    this.backupMessage = '準備中...';
+                    const failed = [];
+                    try {
+                        const JSZip = await this.loadJsZip();
+                        const zip = new JSZip();
+                        const projectFolder = zip.folder(rootName).folder(projectName);
+                        let done = 0;
+                        const worker = async () => {
+                            while (tasks.length) {
+                                const t = tasks.shift();
+                                try {
+                                    const url = await this.resolvePhotoUrl(t.path, { quiet: true });
+                                    if (!url) throw new Error('無法取得照片網址');
+                                    const res = await fetch(url);
+                                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                                    const blob = await res.blob();
+                                    projectFolder.folder(t.folder).file(`${t.name}.${this.backupExtFromBlob(blob, t.path)}`, blob);
+                                } catch (err) {
+                                    failed.push(`${t.folder}/${t.name}：${err.message || err}`);
+                                }
+                                done += 1;
+                                this.backupProgress = Math.round(done / total * 85);
+                                this.backupMessage = `下載照片中 ${done} / ${total}`;
+                            }
+                        };
+                        const total = tasks.length;
+                        await Promise.all(Array.from({ length: 4 }, worker));
+
+                        if (failed.length) {
+                            projectFolder.file('下載失敗清單.txt', '以下照片下載失敗：\r\n' + failed.join('\r\n'));
+                        }
+
+                        this.backupMessage = '壓縮 ZIP 中...';
+                        const content = await zip.generateAsync({ type: 'blob' }, meta => {
+                            this.backupProgress = 85 + Math.round(meta.percent * 0.15);
+                        });
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(content);
+                        a.download = rootName + '.zip';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+                        this.backupProgress = 100;
+                        this.backupMessage = failed.length
+                            ? `完成，但有 ${failed.length} 張照片下載失敗（清單已放在 ZIP 內）。`
+                            : `完成！共 ${total} 張照片已打包下載。`;
+                    } catch (err) {
+                        console.error(err);
+                        this.backupMessage = '備份失敗：' + (err.message || err);
+                        alert(this.backupMessage);
+                    } finally {
+                        this.backupBusy = false;
+                    }
+                },
+
+                // 委託人、建案、地址：依專案分別記住（存在這台裝置）
+                pdfMetaStorageKey() {
+                    return 'hongyuan_pdf_meta_' + (this.selectedProjectId || 'default');
+                },
+
+                loadPdfMeta() {
+                    let saved = {};
+                    try { saved = JSON.parse(this.appStorageGet(this.pdfMetaStorageKey()) || '{}') || {}; } catch (e) { saved = {}; }
+                    this.pdfForm.client = saved.client || '';
+                    this.pdfForm.projectName = saved.projectName || '';
+                    this.pdfForm.address = saved.address || '';
+                },
+
+                savePdfMeta() {
+                    this.appStorageSet(this.pdfMetaStorageKey(), JSON.stringify({
+                        client: this.pdfForm.client || '',
+                        projectName: this.pdfForm.projectName || '',
+                        address: this.pdfForm.address || ''
+                    }));
+                },
+
+                // 排序、自動打勾、日期選項：記住上次的選擇
+                loadPdfOptions() {
+                    let saved = {};
+                    try { saved = JSON.parse(this.appStorageGet('hongyuan_pdf_options') || '{}') || {}; } catch (e) { saved = {}; }
+                    if (saved.sortMode === 'unitSpace' || saved.sortMode === 'created') this.pdfForm.sortMode = saved.sortMode;
+                    if (typeof saved.autoTick === 'boolean') this.pdfForm.autoTick = saved.autoTick;
+                    if (typeof saved.showCompleteDate === 'boolean') this.pdfForm.showCompleteDate = saved.showCompleteDate;
+                    if (typeof saved.showReportDate === 'boolean') this.pdfForm.showReportDate = saved.showReportDate;
+                },
+
+                savePdfOptions() {
+                    this.appStorageSet('hongyuan_pdf_options', JSON.stringify({
+                        sortMode: this.pdfForm.sortMode,
+                        autoTick: !!this.pdfForm.autoTick,
+                        showCompleteDate: !!this.pdfForm.showCompleteDate,
+                        showReportDate: !!this.pdfForm.showReportDate
+                    }));
+                },
+
+                todayDateInputValue() {
+                    const d = new Date();
+                    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                },
+
+                formatPdfDate(value) {
+                    const raw = String(value || '').trim();
+                    if (!raw) return '';
+                    const m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+                    return m ? `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')}` : raw;
                 },
 
                 togglePdfPhotoType(type) {
@@ -6529,186 +6746,179 @@
                     }
                 },
 
-                async exportToPdf() {
-                    if (this.pdfExportBusy) return false;
-                    if (!this.hasPermission('exportPdf')) {
-                        alert('目前帳號沒有 PDF 匯出權限。');
+                // PDF 單頁版面（一鍵下載與列印版共用，確保兩者內容一致）
+                // photoSrc(item, pType) 回傳照片網址；reportDateText 為空字串時不顯示出報告日期
+                pdfBuildPageHtml(pageItems, pageIndex, photoSrc, reportDateText = '') {
+                    const esc = (value) => String(value ?? '')
+                        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    const meta = pageIndex === 0
+                        ? `<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;border:1px solid #cbd5e1;"><tr><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;width:15%;">委託人</td><td style="padding:8px 12px;border:1px solid #cbd5e1;width:35%;">${esc(this.pdfForm.client || '【】')}</td><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;width:15%;">建案</td><td style="padding:8px 12px;border:1px solid #cbd5e1;width:35%;">${esc(this.pdfForm.projectName || '【】')}</td></tr><tr><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;">標的物地址</td><td style="padding:8px 12px;border:1px solid #cbd5e1;">${esc(this.pdfForm.address || '【】')}</td><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;">備註</td><td style="padding:8px 12px;border:1px solid #cbd5e1;">${esc(this.pdfForm.remark || '【】')}</td></tr></table>`
+                        : '';
+
+                    const itemHtml = [];
+                    for (const item of pageItems) {
+                        const photoBlocks = [];
+                        for (const pType of (this.pdfForm.photoTypes || ['defect','repair'])) {
+                            const src = photoSrc(item, pType) || '';
+                            // 照片框高度隨剩餘空間伸縮：文字較長時照片自動縮小，避免文字被切掉
+                            photoBlocks.push(`<div style="flex:1;max-width:50%;display:flex;flex-direction:column;text-align:center;min-height:0;"><div style="font-size:10px;font-weight:bold;color:#475569;margin-bottom:3px;flex-shrink:0;">${pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')}</div><div style="flex:1;min-height:0;position:relative;border:1px solid #e2e8f0;background:#f1f5f9;overflow:hidden;border-radius:4px;">${src ? `<img src="${esc(src)}" crossorigin="anonymous" style="position:absolute;top:0;right:0;bottom:0;left:0;margin:auto;max-width:100%;max-height:100%;">` : '<span style="position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);font-size:10px;color:#94a3b8;">（尚無相片）</span>'}</div></div>`);
+                        }
+                        const descText = item.name || '';
+                        const remarkText = item.remark || '';
+                        const catText = this.categoryDisplay(item.category) || item.category || '';
+                        // 文字越長字越小（12 → 11 → 10px），並自動換行，避免版面跑掉
+                        const fitSize = (text, a, b) => (String(text).length > b ? 10 : (String(text).length > a ? 11 : 12));
+                        const catSize = fitSize(catText, 18, 34);
+                        const descSize = fitSize(descText, 36, 64);
+                        const remarkSize = fitSize(remarkText, 36, 64);
+                        const cellWrap = 'word-break:break-word;overflow-wrap:anywhere;line-height:1.45;';
+                        const tickBox = (status, label = status) => {
+                            const on = this.pdfForm.autoTick && item.repairStatus === status;
+                            const box = on
+                                ? '<span style="display:inline-block;width:12px;height:12px;line-height:12px;text-align:center;border:1px solid #0f172a;background:#0f172a;color:#fff;font-size:10px;font-weight:bold;margin-right:3px;vertical-align:middle;">✓</span>'
+                                : '<span style="display:inline-block;width:12px;height:12px;border:1px solid #334155;margin-right:3px;vertical-align:middle;box-sizing:border-box;"></span>';
+                            return `<span style="display:inline-flex;align-items:center;${on ? 'font-weight:bold;color:#0f172a;' : 'color:#334155;'}">${box}${esc(label)}</span>`;
+                        };
+                        const completeDateHtml = (this.pdfForm.showCompleteDate && item.completeDate)
+                            ? `<span style="color:#475569;">完成日期：${esc(this.formatPdfDate(item.completeDate))}</span>`
+                            : '';
+                        itemHtml.push(`<div style="height:100%;min-height:0;display:flex;flex-direction:column;border:1.5px solid #475569;page-break-inside:avoid;break-inside:avoid;border-radius:6px;overflow:hidden;background:#fff;box-sizing:border-box;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;flex-shrink:0;"><tr style="background:#f1f5f9;border-bottom:1px solid #cbd5e1;"><td style="padding:6px 10px;width:15%;font-weight:bold;border-right:1px solid #cbd5e1;color:#334155;vertical-align:top;">類別</td><td style="padding:6px 10px;width:35%;border-right:1px solid #cbd5e1;vertical-align:top;${cellWrap}font-size:${catSize}px;">${esc(catText)}</td><td style="padding:6px 10px;width:15%;font-weight:bold;border-right:1px solid #cbd5e1;color:#334155;vertical-align:top;">檢測區域</td><td style="padding:6px 10px;width:35%;font-weight:bold;color:#2563eb;vertical-align:top;${cellWrap}">${esc((item.unit || '') + ' ' + (item.space || ''))}</td></tr><tr><td style="padding:6px 10px;font-weight:bold;border-right:1px solid #cbd5e1;background:#f8fafc;color:#334155;vertical-align:top;">缺失說明</td><td style="padding:6px 10px;border-right:1px solid #cbd5e1;vertical-align:top;${cellWrap}font-size:${descSize}px;">${esc(descText)}</td><td style="padding:6px 10px;font-weight:bold;border-right:1px solid #cbd5e1;background:#f8fafc;color:#334155;vertical-align:top;">備註說明</td><td style="padding:6px 10px;vertical-align:top;${cellWrap}font-size:${remarkSize}px;color:#334155;">${esc(remarkText) || '&nbsp;'}</td></tr></table><div style="flex:1;min-height:70px;padding:6px 9px;border-top:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;background:#fafafa;display:flex;gap:9px;justify-content:center;box-sizing:border-box;">${photoBlocks.join('')}</div><div style="flex-shrink:0;padding:5px 11px;background:#fff;display:flex;justify-content:space-between;align-items:center;font-size:11px;"><span style="font-weight:bold;color:#1e293b;">複檢欄位區域：</span><div style="display:flex;gap:14px;font-size:11px;align-items:center;">${tickBox('待修繕')}${tickBox('修繕中')}${tickBox('已完成', '修繕完成')}${completeDateHtml}</div></div></div>`);
+
+                    }
+                    return `<div style="height:100%;display:flex;flex-direction:column;"><div style="flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid #0f172a;"><h1 style="font-size:22px;font-weight:bold;color:#0f172a;margin:0;">【${esc(this.pdfForm.title || this.currentProjectName || '驗屋缺失報告')}】缺失報告說明書</h1><span style="font-size:11px;color:#64748b;text-align:right;line-height:1.5;">${reportDateText ? `出報告日期：${esc(reportDateText)}<br>` : ''}第 ${pageIndex + 1} 頁</span></div><div style="flex-shrink:0;">${meta}</div><div style="flex-shrink:0;font-size:15px;font-weight:bold;padding:7px 12px;background:#1e293b;color:#fff;margin-bottom:10px;border-radius:4px;">標的物檢驗相片及說明書</div><div style="flex:1;min-height:0;display:grid;grid-template-rows:repeat(${pageIndex === 0 ? 2 : 3}, minmax(0, 1fr));gap:10px;">${itemHtml.join('')}</div></div>`;
+                },
+
+                // 列印版：用瀏覽器內建列印產生 PDF，文字可搜尋、可複製，檔案較小
+                async printPdfReport() {
+                    if (this.pdfExportBusy || this.pdfPrintBusy) return false;
+                    if (!this.hasPermission('exportPdf')) { alert('目前帳號沒有 PDF 匯出權限。'); return false; }
+                    if (this.pdfForm.scope === 'unit' && !this.pdfForm.unit) { alert('請先選擇要匯出的戶別。'); return false; }
+                    this.savePdfMeta();
+                    this.savePdfOptions();
+                    const exportItems = this.pdfExportItems;
+                    if (!exportItems.length) {
+                        alert(this.pdfForm.scope === 'filtered' ? '目前的篩選條件下沒有缺失資料可以匯出。' : '目前專案沒有可匯出的缺失資料。');
                         return false;
                     }
 
-                    this.pdfExportBusy = true;
-                    this.pdfExportStartedAt = Date.now();
-                    this.pdfExportProgress = 0;
-                    this.pdfExportStage = 0;
-                    this.pdfExportStageLabel = '準備匯出…';
-                    this.pdfExportCurrentItem = 0;
-                    this.pdfExportCurrentPage = 0;
-                    this.pdfExportMessage = '正在檢查 PDF 產生工具…';
-
-                    const yieldUi = async () => {
-                        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-                    };
-                    const setStage = async (stage, label, progress, message = '') => {
-                        this.pdfExportStage = stage;
-                        this.pdfExportStageLabel = label;
-                        this.pdfExportProgress = Math.max(0, Math.min(100, Math.round(progress)));
-                        this.pdfExportMessage = message;
-                        await yieldUi();
-                    };
-
+                    this.pdfPrintBusy = true;
+                    this.pdfPrintMessage = '正在準備照片…';
+                    let frame = null;
                     try {
-                        const loader = window.__housecheckPdfLoader;
-                        const ok = loader ? await loader.start() : false;
-                        if (!ok || typeof window.html2canvas !== 'function' || !(window.jspdf?.jsPDF || window.jsPDF)) {
-                            throw new Error('PDF 核心元件尚未完整載入，請重新整理頁面後再試。');
-                        }
-
-                        const JsPdf = window.jspdf?.jsPDF || window.jsPDF;
-                        const exportItems = Array.isArray(this.items) ? this.items.filter(Boolean) : [];
-                        if (!exportItems.length) {
-                            alert('目前專案沒有可匯出的缺失資料。');
-                            return false;
-                        }
-
-                        const esc = (value) => String(value ?? '')
-                            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-                        const photoDataUrlCache = new Map();
-                        const photoToDataUrl = async (path) => {
-                            if (!path) return '';
-                            const raw = String(path);
-                            if (raw.startsWith('data:')) return raw;
-                            if (photoDataUrlCache.has(raw)) return photoDataUrlCache.get(raw);
-                            const task = (async () => {
-                                let url = '';
-                                try { url = await this.resolvePhotoUrl(raw); } catch (e) { console.warn('PDF 相片 URL 解析失敗:', e); }
-                                if (!url) return '';
-                                try {
-                                    const response = await fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' });
-                                    if (!response.ok) return '';
-                                    const blob = await response.blob();
-                                    return await new Promise(resolve => {
-                                        const reader = new FileReader();
-                                        reader.onload = () => resolve(String(reader.result || ''));
-                                        reader.onerror = () => resolve('');
-                                        reader.readAsDataURL(blob);
-                                    });
-                                } catch (e) {
-                                    console.warn('PDF 相片下載失敗，將保留空白照片框:', e);
-                                    return '';
-                                }
-                            })();
-                            photoDataUrlCache.set(raw, task);
-                            const result = await task;
-                            photoDataUrlCache.set(raw, result);
-                            return result;
+                        // 先取得每筆缺失要顯示的照片網址（同時最多 6 個請求）
+                        const types = this.pdfForm.photoTypes || ['defect', 'repair'];
+                        const jobs = [];
+                        exportItems.forEach(item => types.forEach(pType => {
+                            const first = (this.getPhotosByType(item, pType) || [])[0];
+                            if (first) jobs.push({ key: `${item.id}::${pType}`, path: String(first) });
+                        }));
+                        const srcMap = new Map();
+                        const objectUrls = [];
+                        this._pdfPrintObjectUrls = objectUrls;
+                        // 照片縮到長邊 600px 再放入（印在 PDF 上約 180 dpi），避免原圖讓 PDF 檔案變大
+                        const shrinkPhoto = async (url) => {
+                            const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+                            if (!res.ok) throw new Error('HTTP ' + res.status);
+                            const bitmap = await createImageBitmap(await res.blob());
+                            const scale = Math.min(1, 600 / Math.max(bitmap.width, bitmap.height));
+                            const canvas = document.createElement('canvas');
+                            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+                            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+                            const ctx2d = canvas.getContext('2d');
+                            ctx2d.fillStyle = '#fff';
+                            ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx2d.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                            if (bitmap.close) bitmap.close();
+                            const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.68));
+                            canvas.width = 1; canvas.height = 1;
+                            if (!blob) throw new Error('壓縮失敗');
+                            const objUrl = URL.createObjectURL(blob);
+                            objectUrls.push(objUrl);
+                            return objUrl;
                         };
+                        let done = 0;
+                        const totalPhotos = jobs.length;
+                        const worker = async () => {
+                            while (jobs.length) {
+                                const job = jobs.shift();
+                                let url = '';
+                                try { url = await this.resolvePhotoUrl(job.path, { quiet: true }); } catch (e) { url = ''; }
+                                if (url) {
+                                    try { url = await shrinkPhoto(url); } catch (e) { /* 壓縮失敗就用原圖 */ }
+                                }
+                                srcMap.set(job.key, url || '');
+                                done += 1;
+                                this.pdfPrintMessage = `正在準備照片 ${done} / ${totalPhotos} 張…`;
+                            }
+                        };
+                        await Promise.all(Array.from({ length: 6 }, worker));
 
+                        const reportDateText = this.pdfForm.showReportDate ? this.formatPdfDate(this.pdfForm.reportDate || this.todayDateInputValue()) : '';
                         const pages = [exportItems.slice(0, 2)];
                         for (let i = 2; i < exportItems.length; i += 3) pages.push(exportItems.slice(i, i + 3));
-                        this.pdfExportTotalItems = exportItems.length;
-                        this.pdfExportTotalPages = pages.length;
-                        await setStage(1, '整理資料', 4, `共 ${exportItems.length} 筆缺失，預計產生 ${pages.length} 頁 PDF。`);
+                        const pagesHtml = pages.map((pageItems, pageIndex) =>
+                            `<div class="page">${this.pdfBuildPageHtml(pageItems, pageIndex, (item, pType) => srcMap.get(`${item.id}::${pType}`) || '', reportDateText)}</div>`
+                        ).join('');
 
-                        const host = document.createElement('div');
-                        host.id = 'housecheck-pdf-export-working';
-                        Object.assign(host.style, {
-                            position:'fixed', left:'0', top:'0', width:'790px', minHeight:'1075px',
-                            background:'#fff', zIndex:'2147483646', pointerEvents:'none', opacity:'1', visibility:'visible',
-                            fontFamily:"'Noto Sans TC',sans-serif", color:'#1e293b', boxSizing:'border-box'
-                        });
-                        document.body.appendChild(host);
+                        const fileTitle = String((this.pdfForm.title || this.currentProjectName || '驗屋缺失報告') + (this.pdfForm.scope === 'unit' && this.pdfForm.unit ? '_' + this.pdfForm.unit : '')).replace(/[\\/:*?"<>|]+/g, '_');
+                        const titleEsc = fileTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+                        // A4 可列印寬度 200mm ≈ 756px，原版面寬 790px，因此縮放 0.956
+                        const docHtml = `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${titleEsc}</title><style>
+                            @page { size: A4 portrait; margin: 5mm; }
+                            html, body { margin: 0; padding: 0; background: #fff; }
+                            body { font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', 'Heiti TC', sans-serif; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            .page { width: 790px; height: 1075px; padding: 24px; box-sizing: border-box; overflow: hidden; background: #fff; zoom: 0.956; break-after: page; page-break-after: always; }
+                            .page:last-child { break-after: auto; page-break-after: auto; }
+                        </style></head><body>${pagesHtml}</body></html>`;
 
-                        const waitForImages = async (root) => {
-                            const imgs = Array.from(root.querySelectorAll('img'));
-                            await Promise.all(imgs.map(img => new Promise(resolve => {
-                                if (img.complete) return resolve();
-                                img.onload = resolve;
-                                img.onerror = resolve;
-                            })));
-                        };
+                        this.pdfPrintMessage = `正在排版 ${pages.length} 頁…`;
+                        frame = document.createElement('iframe');
+                        frame.setAttribute('aria-hidden', 'true');
+                        Object.assign(frame.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0', visibility: 'hidden' });
+                        document.body.appendChild(frame);
+                        const doc = frame.contentDocument;
+                        doc.open();
+                        doc.write(docHtml);
+                        doc.close();
 
-                        try {
-                            const pdf = new JsPdf({ unit:'mm', format:'a4', orientation:'portrait', compress:true });
-                            let overallItemIndex = 0;
+                        // 等照片全部載入（最多 60 秒），避免印出空白照片框
+                        this.pdfPrintMessage = '正在載入照片…';
+                        const imgs = Array.from(doc.images || []);
+                        await Promise.race([
+                            Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; }))),
+                            new Promise(r => setTimeout(r, 60000))
+                        ]);
+                        if (doc.fonts?.ready) { try { await doc.fonts.ready; } catch (e) {} }
 
-                            for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-                                const pageItems = pages[pageIndex];
-                                this.pdfExportCurrentPage = pageIndex + 1;
-                                await setStage(2, '讀取照片', 6 + (pageIndex / Math.max(1, pages.length)) * 62, `第 ${pageIndex + 1} / ${pages.length} 頁｜正在準備 ${pageItems.length} 筆缺失照片…`);
-
-                                const photoJobs = pageItems.flatMap(item => (this.pdfForm.photoTypes || ['defect','repair']).map(async pType => {
-                                    const photos = this.getPhotosByType(item, pType) || [];
-                                    return { itemId:item.id, pType, src: photos[0] ? await photoToDataUrl(photos[0]) : '' };
-                                }));
-                                const photoResults = await Promise.all(photoJobs);
-                                const photoMap = new Map(photoResults.map(x => [`${x.itemId}::${x.pType}`, x.src]));
-
-                                const meta = pageIndex === 0
-                                    ? `<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;border:1px solid #cbd5e1;"><tr><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;width:15%;">委託人</td><td style="padding:8px 12px;border:1px solid #cbd5e1;width:35%;">${esc(this.pdfForm.client || '【】')}</td><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;width:15%;">建案</td><td style="padding:8px 12px;border:1px solid #cbd5e1;width:35%;">${esc(this.pdfForm.projectName || this.currentProjectName || '【】')}</td></tr><tr><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;">標的物地址</td><td style="padding:8px 12px;border:1px solid #cbd5e1;">${esc(this.pdfForm.address || '【】')}</td><td style="padding:8px 12px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:bold;">備註</td><td style="padding:8px 12px;border:1px solid #cbd5e1;">${esc(this.pdfForm.remark || '【】')}</td></tr></table>`
-                                    : '';
-
-                                const itemHtml = [];
-                                for (const item of pageItems) {
-                                    overallItemIndex += 1;
-                                    this.pdfExportCurrentItem = overallItemIndex;
-                                    this.pdfExportMessage = `第 ${pageIndex + 1} / ${pages.length} 頁｜第 ${overallItemIndex} / ${exportItems.length} 筆${item.code ? `（${item.code}）` : ''}`;
-                                    await yieldUi();
-
-                                    const photoBlocks = [];
-                                    for (const pType of (this.pdfForm.photoTypes || ['defect','repair'])) {
-                                        const src = photoMap.get(`${item.id}::${pType}`) || '';
-                                        photoBlocks.push(`<div style="flex:1;text-align:center;max-width:50%;"><div style="font-size:10px;font-weight:bold;color:#475569;margin-bottom:3px;">${pType === 'defect' ? '【缺失照片】' : (pType === 'repair' ? '【修繕照片】' : '【工檢照片】')}</div><div style="width:100%;height:150px;border:1px solid #e2e8f0;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:4px;">${src ? `<img src="${esc(src)}" crossorigin="anonymous" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<span style="font-size:10px;color:#94a3b8;">（尚無相片）</span>'}</div></div>`);
-                                    }
-                                    itemHtml.push(`<div style="height:320px;border:1.5px solid #475569;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;border-radius:6px;overflow:hidden;background:#fff;box-sizing:border-box;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><tr style="background:#f1f5f9;border-bottom:1px solid #cbd5e1;"><td style="padding:6px 10px;width:15%;font-weight:bold;border-right:1px solid #cbd5e1;color:#334155;">類別</td><td style="padding:6px 10px;width:35%;border-right:1px solid #cbd5e1;">${esc(item.category || '')}</td><td style="padding:6px 10px;width:15%;font-weight:bold;border-right:1px solid #cbd5e1;color:#334155;">檢測區域</td><td style="padding:6px 10px;width:35%;font-weight:bold;color:#2563eb;">${esc((item.unit || '') + ' ' + (item.space || ''))}</td></tr><tr><td style="padding:6px 10px;font-weight:bold;border-right:1px solid #cbd5e1;background:#f8fafc;color:#334155;">缺失說明</td><td style="padding:6px 10px;" colspan="3">${esc((item.name || '') + (item.remark ? '（' + item.remark + '）' : ''))}</td></tr></table><div style="padding:7px 9px;border-bottom:1px solid #cbd5e1;background:#fafafa;"><div style="display:flex;gap:9px;justify-content:center;align-items:center;">${photoBlocks.join('')}</div></div><div style="padding:5px 11px;background:#fff;display:flex;justify-content:space-between;align-items:center;font-size:11px;"><span style="font-weight:bold;color:#1e293b;">複檢欄位區域：</span><div style="display:flex;gap:14px;font-size:11px;"><span>□ 待修繕</span><span>□ 修繕中</span><span>□ 修繕完成</span></div></div></div>`);
-                                }
-
-                                const pageEl = document.createElement('div');
-                                pageEl.style.cssText = 'width:790px;height:1075px;padding:24px;background:#fff;box-sizing:border-box;overflow:hidden;';
-                                pageEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid #0f172a;"><h1 style="font-size:22px;font-weight:bold;color:#0f172a;margin:0;">【${esc(this.pdfForm.title || this.currentProjectName || '驗屋缺失報告')}】缺失報告說明書</h1><span style="font-size:11px;color:#64748b;">第 ${pageIndex + 1} 頁</span></div>${meta}<div style="font-size:15px;font-weight:bold;padding:7px 12px;background:#1e293b;color:#fff;margin-bottom:10px;border-radius:4px;">標的屋檢驗相片及說明</div>${itemHtml.join('')}`;
-                                host.appendChild(pageEl);
-
-                                if (document.fonts?.ready) { try { await document.fonts.ready; } catch (e) {} }
-                                await waitForImages(pageEl);
-                                await setStage(3, '組合報告版面', 70 + ((pageIndex + 1) / pages.length) * 20, `第 ${pageIndex + 1} / ${pages.length} 頁｜版面準備完成，正在建立 PDF 頁面…`);
-
-                                const canvas = await window.html2canvas(pageEl, {
-                                    scale:1.5, useCORS:true, allowTaint:false, logging:false,
-                                    backgroundColor:'#ffffff', scrollX:0, scrollY:0, windowWidth:1024, windowHeight:1400
-                                });
-
-                                const imageData = canvas.toDataURL('image/jpeg', 0.90);
-                                if (pageIndex > 0) pdf.addPage();
-                                pdf.addImage(imageData, 'JPEG', 5, 5, 200, 200 * (1075 / 790), undefined, 'FAST');
-
-                                host.removeChild(pageEl);
-                                canvas.width = 1;
-                                canvas.height = 1;
-                                await yieldUi();
-                            }
-
-                            await setStage(4, '製作 PDF 檔案', 92, `正在寫入 ${pages.length} 頁 PDF，請不要關閉視窗…`);
-                            pdf.save(`${this.pdfForm.title || this.currentProjectName || '驗屋缺失報告'}.pdf`);
-
-                            this.pdfExportProgress = 100;
-                            this.pdfExportStage = 5;
-                            this.pdfExportStageLabel = '完成';
-                            this.pdfExportMessage = `PDF 已完成：${exportItems.length} 筆缺失，共 ${pages.length} 頁。`;
-                            await yieldUi();
-                            this.showPdfExportModalFlag = false;
-                            return true;
-                        } finally {
-                            if (host.parentNode) host.parentNode.removeChild(host);
-                        }
+                        this.pdfPrintMessage = '已開啟列印視窗：「目的地」請選「另存為 PDF」。';
+                        const originalTitle = document.title;
+                        document.title = fileTitle; // 讓「另存為 PDF」的預設檔名為報告標題
+                        await new Promise(r => setTimeout(r, 50));
+                        frame.contentWindow.focus();
+                        frame.contentWindow.print();
+                        document.title = originalTitle;
+                        this.pdfPrintMessage = '';
+                        return true;
                     } catch (err) {
-                        console.error('PDF 匯出失敗', err);
-                        this.pdfExportStageLabel = '匯出失敗';
-                        this.pdfExportMessage = `匯出失敗：${err?.message || String(err)}`;
-                        alert(`PDF 匯出失敗：${err?.message || String(err)}`);
+                        console.error('列印版產生失敗', err);
+                        this.pdfPrintMessage = '';
+                        alert('列印版產生失敗：' + (err?.message || String(err)));
                         return false;
                     } finally {
-                        this.pdfExportBusy = false;
+                        this.pdfPrintBusy = false;
+                        // 列印視窗關閉後再移除（部分瀏覽器 print() 不會等待，因此另設 10 分鐘保險）
+                        if (frame) {
+                            const urlsToRevoke = this._pdfPrintObjectUrls || [];
+                            this._pdfPrintObjectUrls = null;
+                            const removeFrame = () => {
+                                if (frame.parentNode) frame.parentNode.removeChild(frame);
+                                urlsToRevoke.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+                                urlsToRevoke.length = 0;
+                            };
+                            try { frame.contentWindow.addEventListener('afterprint', () => setTimeout(removeFrame, 1000)); } catch (e) {}
+                            setTimeout(removeFrame, 10 * 60 * 1000);
+                        }
                     }
                 },
 
@@ -7004,8 +7214,23 @@
                     this.saveProjectsToStorage();
                 },
 
+                // 點清單整列：一般模式開啟編輯；多選模式則選取／取消選取。
+                // 點到按鈕、下拉選單、輸入框、連結或彈出選單時不觸發；長按進入多選後放開也不觸發。
+                onTableRowClick(item, event) {
+                    if (this._rowLongPressFired) { this._rowLongPressFired = false; return; }
+                    const target = event && event.target;
+                    if (target && target.closest && target.closest('button, a, input, select, textarea, label, [contenteditable="true"], .category-multi-select-menu, [role="menu"]')) return;
+                    const sel = window.getSelection ? String(window.getSelection() || '') : '';
+                    if (sel.trim()) return; // 正在反白選取文字時不開啟
+                    if (this.batchMode) { this.toggleItemSelection(item.id); return; }
+                    if (!this.hasPermission('edit')) return;
+                    this.openEditModal(item);
+                },
+
                 startRowPress(id) {
+                    this._rowLongPressFired = false;
                     this.pressTimer = setTimeout(() => {
+                        this._rowLongPressFired = true;
                         this.batchMode = true;
                         if (!this.selectedItemIds.includes(id)) {
                             this.selectedItemIds.push(id);
@@ -7117,16 +7342,155 @@
                     this.selectedItemIds = [];
                 },
 
-                handleHeaderDragStart(e, idx) {
-                    this.draggedColIndex = idx;
+                // 拖曳表頭調整欄位順序（以欄位 key 計算，隱藏欄位不影響），並記住順序
+                handleHeaderDragStart(e, key) {
+                    this.draggedColIndex = key;
                 },
 
-                handleHeaderDrop(e, idx) {
-                    if (this.draggedColIndex !== null && this.draggedColIndex !== idx) {
-                        const movedCol = this.tableColumns.splice(this.draggedColIndex, 1)[0];
-                        this.tableColumns.splice(idx, 0, movedCol);
-                    }
+                handleHeaderDrop(e, key) {
+                    const fromKey = this.draggedColIndex;
                     this.draggedColIndex = null;
+                    if (!fromKey || fromKey === key || fromKey === 'action' || key === 'action') return;
+                    const from = this.tableColumns.findIndex(c => c.key === fromKey);
+                    const to = this.tableColumns.findIndex(c => c.key === key);
+                    if (from < 0 || to < 0) return;
+                    const movedCol = this.tableColumns.splice(from, 1)[0];
+                    this.tableColumns.splice(to, 0, movedCol);
+                    this.saveTableColumnSettings();
+                },
+
+                // 表格上下兩條左右滑桿同步（上方滑桿在表頭正上方）
+                setupTableDualScroll(top, main) {
+                    if (!top || !main || main._hyDualScroll) return;
+                    const inner = top.firstElementChild;
+                    // 只在位置不同時才同步，避免兩條滑桿互相觸發
+                    const sync = (from, to) => {
+                        if (Math.abs(to.scrollLeft - from.scrollLeft) > 0.5) to.scrollLeft = from.scrollLeft;
+                    };
+                    const onTop = () => sync(top, main);
+                    const onMain = () => sync(main, top);
+                    const refresh = () => {
+                        if (!main.isConnected) {
+                            // 表格已被移除（例如切換到圖卡模式），清掉監聽避免累積
+                            window.removeEventListener('resize', refresh);
+                            if (ro) ro.disconnect();
+                            return;
+                        }
+                        const overflow = main.scrollWidth > main.clientWidth + 1;
+                        top.style.display = overflow ? 'block' : 'none';
+                        if (inner) inner.style.width = main.scrollWidth + 'px';
+                        top.scrollLeft = main.scrollLeft;
+                    };
+                    top.addEventListener('scroll', onTop, { passive: true });
+                    main.addEventListener('scroll', onMain, { passive: true });
+                    const ro = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver(refresh) : null;
+                    if (ro) {
+                        ro.observe(main);
+                        const table = main.querySelector('table');
+                        if (table) ro.observe(table);
+                    }
+                    window.addEventListener('resize', refresh);
+                    main._hyDualScroll = { ro, refresh };
+                    refresh();
+                },
+
+                // ===== 清單欄位設定：顯示／隱藏、鎖定左側；「操作」永遠固定右側 =====
+                get visibleTableColumns() {
+                    const hidden = new Set(this.hiddenColumnKeys || []);
+                    const locked = new Set(this.lockedColumnKeys || []);
+                    const cols = this.tableColumns.filter(c => c.key === 'action' || !hidden.has(c.key));
+                    return [
+                        ...cols.filter(c => c.key !== 'action' && locked.has(c.key)),
+                        ...cols.filter(c => c.key !== 'action' && !locked.has(c.key)),
+                        ...cols.filter(c => c.key === 'action')
+                    ];
+                },
+
+                isColumnLocked(key) {
+                    return key !== 'action' && (this.lockedColumnKeys || []).includes(key) && !(this.hiddenColumnKeys || []).includes(key);
+                },
+
+                get lockedVisibleCount() {
+                    return this.visibleTableColumns.filter(c => this.isColumnLocked(c.key)).length;
+                },
+
+                columnStickyClass(col) {
+                    if (col.key === 'action') return 'sticky-action-col';
+                    if (!this.isColumnLocked(col.key)) return '';
+                    const lockedCols = this.visibleTableColumns.filter(c => this.isColumnLocked(c.key));
+                    return 'sticky-left-col' + (lockedCols[lockedCols.length - 1]?.key === col.key ? ' sticky-left-last' : '');
+                },
+
+                // 鎖定欄位使用固定寬度，才能準確算出每欄距離左邊的位置
+                columnCellStyle(col) {
+                    const w = col.width;
+                    if (!this.isColumnLocked(col.key)) return 'min-width: ' + w;
+                    let left = this.batchMode ? 56 : 0;
+                    for (const c of this.visibleTableColumns) {
+                        if (c.key === col.key) break;
+                        if (this.isColumnLocked(c.key)) left += parseInt(c.width, 10) || 0;
+                    }
+                    return 'left:' + left + 'px;width:' + w + ';min-width:' + w + ';max-width:' + w + ';';
+                },
+
+                toggleColumnHidden(key) {
+                    if (key === 'action') return;
+                    const hidden = new Set(this.hiddenColumnKeys || []);
+                    if (hidden.has(key)) hidden.delete(key); else hidden.add(key);
+                    this.hiddenColumnKeys = [...hidden];
+                    this.saveTableColumnSettings();
+                },
+
+                toggleColumnLocked(key) {
+                    if (key === 'action') return;
+                    const locked = new Set(this.lockedColumnKeys || []);
+                    if (locked.has(key)) {
+                        locked.delete(key);
+                    } else {
+                        const widthOf = k => parseInt((this.tableColumns.find(c => c.key === k) || {}).width, 10) || 0;
+                        const total = [...locked].filter(k => !(this.hiddenColumnKeys || []).includes(k)).reduce((n, k) => n + widthOf(k), 0) + widthOf(key);
+                        if (total > 560) {
+                            alert('鎖定的欄位太寬，會擋住右邊的內容。請先取消其他鎖定欄位。');
+                            return;
+                        }
+                        locked.add(key);
+                    }
+                    this.lockedColumnKeys = [...locked];
+                    this.saveTableColumnSettings();
+                },
+
+                saveTableColumnSettings() {
+                    try {
+                        localStorage.setItem('hongyuan_table_columns', JSON.stringify({
+                            order: this.tableColumns.map(c => c.key),
+                            hidden: this.hiddenColumnKeys || [],
+                            locked: this.lockedColumnKeys || []
+                        }));
+                    } catch (e) {}
+                },
+
+                loadTableColumnSettings() {
+                    if (!window.__hyDefaultTableColumns) window.__hyDefaultTableColumns = this.tableColumns.map(c => ({ ...c }));
+                    let saved = null;
+                    try { saved = JSON.parse(localStorage.getItem('hongyuan_table_columns') || 'null'); } catch (e) { saved = null; }
+                    if (!saved || typeof saved !== 'object') return;
+                    const keys = new Set(this.tableColumns.map(c => c.key));
+                    if (Array.isArray(saved.order)) {
+                        // 依儲存的順序排列；之後新增的欄位接在後面
+                        const byKey = new Map(this.tableColumns.map(c => [c.key, c]));
+                        const ordered = saved.order.filter(k => byKey.has(k)).map(k => byKey.get(k));
+                        const rest = this.tableColumns.filter(c => !saved.order.includes(c.key));
+                        this.tableColumns = [...ordered, ...rest];
+                    }
+                    if (Array.isArray(saved.hidden)) this.hiddenColumnKeys = saved.hidden.filter(k => keys.has(k) && k !== 'action');
+                    if (Array.isArray(saved.locked)) this.lockedColumnKeys = saved.locked.filter(k => keys.has(k) && k !== 'action');
+                },
+
+                resetTableColumnSettings() {
+                    if (window.__hyDefaultTableColumns) this.tableColumns = window.__hyDefaultTableColumns.map(c => ({ ...c }));
+                    this.hiddenColumnKeys = [];
+                    this.lockedColumnKeys = ['code', 'name'];
+                    try { localStorage.removeItem('hongyuan_table_columns'); } catch (e) {}
                 },
 
                 openNewItemModal() {
@@ -7526,15 +7890,84 @@
                     if (key === 'category') { this.optionEditTitle = '工種/類別'; this.tempOptionList = [...this.categoryList]; }
                     if (key === 'method') { this.optionEditTitle = '驗收方法'; this.tempOptionList = [...this.methodList]; }
                     if (key === 'unit') { this.optionEditTitle = '戶別'; this.tempOptionList = [...this.unitList]; }
+                    this.optionEditAddedCount = 0;
                     this.showOptionEditModalFlag = true;
                 },
 
+                // 新增的選項放在第一格，並自動捲到最上方、游標直接進入輸入框
                 addOptionItem() {
-                    this.tempOptionList.push('新選項');
+                    this.tempOptionList.unshift('');
+                    this.optionEditAddedCount += 1;
+                    this.$nextTick(() => {
+                        const box = this.$refs.optionEditListBox;
+                        if (!box) return;
+                        box.scrollTop = 0;
+                        const input = box.querySelector('input');
+                        if (input) input.focus();
+                    });
                 },
 
                 removeOptionItem(idx) {
                     this.tempOptionList.splice(idx, 1);
+                    if (idx < this.optionEditAddedCount) this.optionEditAddedCount -= 1;
+                },
+
+                optionListByKey(key) {
+                    if (key === 'space') return this.spaceList || [];
+                    if (key === 'category') return this.categoryList || [];
+                    if (key === 'method') return this.methodList || [];
+                    if (key === 'unit') return this.unitList || [];
+                    return [];
+                },
+
+                // 新增缺失視窗用：上次選擇的選項排在最前面
+                newItemOptionList(key) {
+                    const list = this.optionListByKey(key);
+                    const d = this.lastNewItemDefaults || {};
+                    const preferred = (key === 'category' ? this.categoryValues(d.category) : [d[key]])
+                        .filter((v, i, arr) => v && list.includes(v) && arr.indexOf(v) === i);
+                    return [...preferred, ...list.filter(v => !preferred.includes(v))];
+                },
+
+                rememberNewItemDefault(key, value) {
+                    this.lastNewItemDefaults = { ...(this.lastNewItemDefaults || {}), [key]: value };
+                    this.appStorageSet('hongyuan_new_item_defaults', JSON.stringify(this.lastNewItemDefaults));
+                },
+
+                // 選項儲存後：把剛新增的選項直接帶入正在填寫的表單，並記成「上次選擇」
+                applyNewlyAddedOption(key, added) {
+                    const withHistoricalValue = (list, value) => {
+                        const base = [...list];
+                        if (value && !base.includes(value)) base.unshift(value);
+                        return base;
+                    };
+                    const value = added[0];
+                    this.$nextTick(() => {
+                        if (this.showEditItemModalFlag) {
+                            if (value) {
+                                if (key === 'category') {
+                                    if (!this.editItemCategorySelection.includes(value)) this.editItemCategorySelection = [value, ...this.editItemCategorySelection];
+                                    this.editItemForm.category = this.categoryValue(this.editItemCategorySelection);
+                                } else {
+                                    this.editItemForm[key] = value;
+                                }
+                            }
+                            this.editSpaceOptions = withHistoricalValue(this.spaceList, this.editItemForm.space);
+                            this.editMethodOptions = withHistoricalValue(this.methodList, this.editItemForm.method);
+                            this.editUnitOptions = withHistoricalValue(this.unitList, this.editItemForm.unit);
+                        }
+                        if (!value) return;
+                        if (this.showNewItemModalFlag) {
+                            if (key === 'category') {
+                                if (!this.newItemCategorySelection.includes(value)) this.newItemCategorySelection = [value, ...this.newItemCategorySelection];
+                                this.newItemForm.category = this.categoryValue(this.newItemCategorySelection);
+                                this.rememberNewItemDefault('category', this.newItemForm.category);
+                                return;
+                            }
+                            this.newItemForm[key] = value;
+                        }
+                        this.rememberNewItemDefault(key, value);
+                    });
                 },
 
                 async saveOptionEdit() {
@@ -7562,6 +7995,8 @@
                         method: [...this.methodList],
                         unit: [...this.unitList]
                     };
+                    const editedKey = this.optionEditTargetKey;
+                    const addedOptions = filtered.filter(v => !(previous[editedKey] || []).includes(v));
 
                     if (this.optionEditTargetKey === 'space') this.spaceList = filtered;
                     if (this.optionEditTargetKey === 'category') this.categoryList = filtered;
@@ -7602,6 +8037,8 @@
 
                     this.showOptionEditModalFlag = false;
                     this.optionEditBaseUpdatedAt = '';
+                    this.optionEditAddedCount = 0;
+                    this.applyNewlyAddedOption(editedKey, addedOptions);
                 },
 
                 openGalleryModal() {
