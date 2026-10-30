@@ -751,6 +751,37 @@
             }
         }
         .mobile-edit-modal-card { max-height: 92vh; }
+        /* 關閉照片視窗後，回到的那一筆缺失短暫反黑，方便確認位置。 */
+        @keyframes photoReturnFlash {
+            0%, 55% { background-color: #0f172a; color: #ffffff; }
+            100% { background-color: transparent; }
+        }
+        @keyframes photoReturnText {
+            0%, 55% { color: #ffffff; }
+        }
+        /* 只把「沒有自己底色」的文字變白；有底色的小標籤維持原色才看得清楚。 */
+        .photo-return-flash * { animation: photoReturnText 0.9s ease-out; }
+        .photo-return-flash > * [class*="bg-"], .photo-return-flash > * [class*="bg-"] * { animation: none; }
+        .photo-return-flash, .photo-return-flash > * { animation: photoReturnFlash 0.9s ease-out; }
+        .photo-nav-btn {
+            position: absolute; top: 50%; transform: translateY(-50%); z-index: 60;
+            width: 44px; height: 44px; border-radius: 9999px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(15, 23, 42, 0.75); color: #fff; font-size: 18px;
+            box-shadow: 0 4px 14px rgba(0,0,0,.35); transition: background .15s;
+        }
+        .photo-nav-btn:hover { background: rgba(37, 99, 235, 0.95); }
+        .photo-nav-btn:disabled { opacity: .25; cursor: not-allowed; }
+        .photo-nav-btn.left { left: 4px; }
+        .photo-nav-btn.right { right: 4px; }
+        @media (min-width: 1100px) {
+            .photo-nav-btn.left { left: 16px; }
+            .photo-nav-btn.right { right: 16px; }
+        }
+        @media (max-width: 767px) {
+            .column-settings-wrap { display: none !important; }
+            .photo-nav-btn { width: 36px; height: 36px; font-size: 15px; }
+        }
         @media (max-width: 767px) {
             .desktop-filter-controls { display: none !important; }
             .mobile-filter-controls { display: flex !important; }
@@ -1665,7 +1696,7 @@
                                         <span>顯示 <b class="text-slate-700" x-text="((currentPage - 1) * pageSize) + 1"></b>–<b class="text-slate-700" x-text="Math.min(currentPage * pageSize, filteredItems.length)"></b> / <b class="text-slate-700" x-text="filteredItems.length"></b> 筆</span>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <div class="relative" @pointerdown.outside="showColumnSettings = false" @keydown.escape="showColumnSettings = false">
+                                        <div class="relative column-settings-wrap" @pointerdown.outside="showColumnSettings = false" @keydown.escape="showColumnSettings = false">
                                             <button type="button" @click="showColumnSettings = !showColumnSettings"
                                                     class="h-10 px-3 border rounded-lg font-semibold flex items-center gap-1.5 transition"
                                                     :class="showColumnSettings ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'"
@@ -1785,6 +1816,7 @@
                                         <tbody class="divide-y divide-slate-100">
                                             <template x-for="(item, index) in paginatedItems" :key="item.id">
                                                 <tr class="row-clickable hover:bg-blue-50/40 transition select-none"
+                                                    :data-item-id="item.id"
                                                     @click="onTableRowClick(item, $event)"
                                                     :title="batchMode ? '點一下選取／取消選取' : (hasPermission('edit') ? '點一下開啟編輯' : '')"
                                                     @mousedown="startRowPress(item.id)"
@@ -1989,7 +2021,7 @@
                             </template>
 
                             <template x-for="item in paginatedItems" :key="'m-'+item.id">
-                                <article class="mobile-inspection-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <article class="mobile-inspection-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" :data-item-id="item.id">
                                     <div class="flex items-center gap-1.5 px-2.5 py-2 border-b border-slate-100 bg-slate-50/80">
                                         <template x-if="batchMode">
                                             <button type="button"
@@ -2911,7 +2943,7 @@
             <div class="flex-1 overflow-y-auto p-6 space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <template x-for="item in paginatedItems" :key="item.id">
-                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between hover:shadow-md transition">
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between hover:shadow-md transition" :data-item-id="item.id">
                             <div class="relative h-44 bg-slate-900 overflow-hidden cursor-pointer" @click="openPhotoModal(item, galleryPhotoType)">
                                 <template x-if="getPhotosByType(item, galleryPhotoType).length > 0">
                                     <img :src="getThumbUrl(getPhotosByType(item, galleryPhotoType)[0])" @error="onThumbError(getPhotosByType(item, galleryPhotoType)[0], $event)" class="w-full h-full object-cover hover:scale-105 transition duration-300" alt="照片縮圖">
@@ -2972,10 +3004,18 @@
 
     <!-- Photo Modal -->
     <div x-show="showPhotoModalFlag" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs" style="display: none;">
+        <!-- 左右切換上一筆／下一筆缺失（依目前清單的篩選與排序） -->
+        <button type="button" class="photo-nav-btn left" @click.stop="gotoAdjacentPhotoItem(-1)" :disabled="photoNavIndex <= 0" title="上一筆缺失" aria-label="上一筆缺失">
+            <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <button type="button" class="photo-nav-btn right" @click.stop="gotoAdjacentPhotoItem(1)" :disabled="photoNavIndex < 0 || photoNavIndex >= filteredItems.length - 1" title="下一筆缺失" aria-label="下一筆缺失">
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
         <div class="photo-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]" @click.stop>
             <div class="photo-modal-header px-4 sm:px-5 py-2.5 sm:py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
                     <span class="text-[11px] sm:text-xs text-slate-400 font-semibold" x-text="'現場照片 · ' + (currentPhotoItem.unit || 'A3-01')"></span>
+                    <span x-show="photoNavIndex >= 0" class="ml-1 text-[11px] sm:text-xs font-bold text-blue-600" x-text="'編號 ' + displayCode(currentPhotoItem) + '（' + (photoNavIndex + 1) + ' / ' + filteredItems.length + '）'"></span>
                     <h2 class="text-base sm:text-lg font-bold text-slate-800">照片檢視與管理</h2>
                 </div>
                 <div class="flex items-center space-x-2">
@@ -7091,9 +7131,49 @@
                     this.showPhotoModalFlag = true;
                 },
 
+                // 目前照片視窗中的缺失，在清單（已套用搜尋／篩選）中的位置；不在清單中時為 -1。
+                get photoNavIndex() {
+                    const cur = this.currentPhotoItem;
+                    if (!cur || cur.id == null) return -1;
+                    return this.filteredItems.findIndex(i => i.id === cur.id);
+                },
+
+                // 照片視窗內切換上一筆（-1）／下一筆（1）缺失，保留目前的照片類型分頁。
+                gotoAdjacentPhotoItem(step) {
+                    const idx = this.photoNavIndex;
+                    if (idx < 0) return;
+                    const next = this.filteredItems[idx + step];
+                    if (!next) return;
+                    this.currentPhotoItem = next;
+                    this.activePhotoIndex = 0;
+                },
+
                 closePhotoModal() {
                     this.showPhotoModalFlag = false;
                     this.saveProjectsToStorage();
+                    this.revealItemInList(this.currentPhotoItem);
+                },
+
+                // 清單跳到該筆缺失所在頁，捲動到該筆並短暫反黑提示位置。
+                revealItemInList(item) {
+                    if (!item || item.id == null) return;
+                    const idx = this.filteredItems.findIndex(i => i.id === item.id);
+                    if (idx < 0) return;
+                    this.currentPage = Math.floor(idx / this.pageSize) + 1;
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            const els = Array.from(document.querySelectorAll('[data-item-id]'))
+                                .filter(el => el.dataset.itemId === String(item.id) && el.offsetParent !== null);
+                            if (!els.length) return;
+                            els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            els.forEach(el => {
+                                el.classList.remove('photo-return-flash');
+                                void el.offsetWidth;
+                                el.classList.add('photo-return-flash');
+                                setTimeout(() => el.classList.remove('photo-return-flash'), 1000);
+                            });
+                        }, 60);
+                    });
                 },
 
                 async addCurrentPhotoFiles(fileList) {
